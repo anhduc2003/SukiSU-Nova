@@ -25,6 +25,7 @@ object SuSFSConfig {
     const val KEY_ENABLE_HIDE_BL = "enable_hide_bl"
     const val KEY_ENABLE_AVC_LOG_SPOOFING = "enable_avc_log_spoofing"
     const val KEY_CMDLINE_OR_BOOTCONFIG_PATH = "cmdline_or_bootconfig_path"
+    const val KEY_HIDE_PROFILE = "hide_profile"
 
     // Defaults
     const val DEFAULT_UNAME = "default"

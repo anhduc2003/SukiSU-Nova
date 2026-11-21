@@ -12,5 +12,5 @@ pub mod syscall;
 pub mod types;
 
 pub use consts::*;
-pub use syscall::send;
+pub use syscall::{send, send_errno};
 pub use types::*;

@@ -32,6 +32,8 @@ mod extension;
 mod extension_id;
 mod feature;
 mod feature_id;
+#[cfg(all(target_arch = "aarch64", target_os = "android"))]
+mod hide;
 #[cfg(target_os = "android")]
 mod hot_install;
 #[cfg(target_os = "android")]

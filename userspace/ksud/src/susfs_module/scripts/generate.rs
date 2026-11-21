@@ -183,6 +183,11 @@ pub fn service(
         if enable_log { "启用" } else { "禁用" }
     );
 
+    // 内置隐藏配置。每次都读配置而不是把档位写死，改档后不用重装模块。
+    s.push_str("\n# 应用内置隐藏配置\n");
+    s.push_str("/data/adb/ksud hide apply >> \"$LOG_FILE\" 2>&1\n");
+    s.push_str("echo \"$(get_current_time): 内置隐藏配置已应用\" >> \"$LOG_FILE\"\n");
+
     // hide bl
     if enable_hide_bl {
         s.push_str("\n# 隐藏BL\n");

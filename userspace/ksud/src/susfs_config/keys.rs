@@ -4,9 +4,11 @@
 //! the on-device WebUI; renaming one here without updating the WebUI
 //! will silently drop that setting on every read.
 //!
-//! Used internally by [`super::store`] (for `reset_to_defaults`) and
-//! [`super::module`] (for `load_module_config`); not re-exported at the
-//! `susfs_config` root because the CLI never needs to spell a key.
+//! Used internally by [`super::store`] (for `reset_to_defaults`),
+//! [`super::module`] (for `load_module_config`) and `crate::hide` (which
+//! reads [`KEY_HIDE_PROFILE`] when no profile is given on the command line);
+//! not re-exported at the `susfs_config` root because no shell caller
+//! needs to spell a key.
 
 pub const KEY_UNAME_VALUE: &str = "uname_value";
 pub const KEY_BUILD_TIME_VALUE: &str = "build_time_value";
@@ -25,6 +27,7 @@ pub const KEY_ENABLE_CLEANUP_RESIDUE: &str = "enable_cleanup_residue";
 pub const KEY_ENABLE_HIDE_BL: &str = "enable_hide_bl";
 pub const KEY_ENABLE_AVC_LOG_SPOOFING: &str = "enable_avc_log_spoofing";
 pub const KEY_CMDLINE_OR_BOOTCONFIG_PATH: &str = "cmdline_or_bootconfig_path";
+pub const KEY_HIDE_PROFILE: &str = "hide_profile";
 
 /// All known config keys, in load order.
 ///
@@ -50,4 +53,5 @@ pub const ALL_KEYS: &[&str] = &[
     KEY_ENABLE_HIDE_BL,
     KEY_ENABLE_AVC_LOG_SPOOFING,
     KEY_CMDLINE_OR_BOOTCONFIG_PATH,
+    KEY_HIDE_PROFILE,
 ];

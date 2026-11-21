@@ -210,6 +210,13 @@ enum Commands {
         command: Susfs,
     },
 
+    #[cfg(target_arch = "aarch64")]
+    /// Built-in root-hiding packs
+    Hide {
+        #[command(subcommand)]
+        command: Hide,
+    },
+
     /// Manage dynamic userspace managers
     Manager {
         #[command(subcommand)]
@@ -789,6 +796,28 @@ mod kpm_cmd {
         /// Print KPM Loader version
         Version,
     }
+}
+
+/// Built-in root-hiding packs.
+///
+/// `apply` is what the `susfs_manager` boot script calls; `list` and
+/// `status` exist so the table can be inspected without a root shell on a
+/// phone.
+#[cfg(target_arch = "aarch64")]
+#[derive(clap::Subcommand, Debug)]
+enum Hide {
+    /// Apply a hide profile now (defaults to the stored one)
+    Apply {
+        /// off, light, balanced or aggressive
+        profile: Option<String>,
+    },
+    /// Show the stored profile and the SuSFS state behind it
+    Status,
+    /// Print the hide table and mark what a profile applies
+    List {
+        /// off, light, balanced or aggressive
+        profile: Option<String>,
+    },
 }
 
 #[cfg(target_arch = "aarch64")]
@@ -1602,6 +1631,27 @@ pub fn run() -> Result<()> {
                 }
                 Kpm::Version => crate::kpm::version(),
             }
+        }
+        #[cfg(target_arch = "aarch64")]
+        Commands::Hide { command } => {
+            use crate::hide::{self, HideProfile};
+            // An explicit profile wins over the stored one so a caller can
+            // preview a level without changing the boot configuration.
+            let resolve = |profile: Option<String>| -> Result<HideProfile> {
+                profile.map_or_else(hide::configured_profile, |value| HideProfile::parse(&value))
+            };
+            match command {
+                Hide::Apply { profile } => {
+                    print!("{}", hide::apply(resolve(profile)?)?.render());
+                }
+                Hide::Status => {
+                    print!("{}", hide::status()?);
+                }
+                Hide::List { profile } => {
+                    print!("{}", hide::list(resolve(profile)?));
+                }
+            }
+            Ok(())
         }
         #[cfg(target_arch = "aarch64")]
         Commands::Susfs { command } => {

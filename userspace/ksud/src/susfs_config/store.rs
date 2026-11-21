@@ -96,6 +96,8 @@ pub fn reset_to_defaults() -> Result<()> {
     config.insert(KEY_ENABLE_CLEANUP_RESIDUE.to_string(), "false".to_string());
     config.insert(KEY_ENABLE_HIDE_BL.to_string(), "true".to_string());
     config.insert(KEY_ENABLE_AVC_LOG_SPOOFING.to_string(), "false".to_string());
+    // hide_profile is deliberately left unset: an absent key means "let the
+    // device choose", which is how the OnePlus Ace 5 pack raises the level.
     save_config(&config)
 }
 

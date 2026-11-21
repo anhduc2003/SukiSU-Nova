@@ -32,6 +32,19 @@ use super::types::{
 /// `cmd != ERR_CMD_NOT_SUPPORTED && cmd != 0` is converted into an
 /// `anyhow::Error`.
 pub fn send<T: HasErr>(cmd: u32, payload: &mut T, op_name: &str) -> anyhow::Result<()> {
+    let err = send_errno(cmd, payload);
+    if err == 0 || err == ERR_CMD_NOT_SUPPORTED {
+        return Ok(());
+    }
+    anyhow::bail!("{op_name}: kernel returned err={err}")
+}
+
+/// Dispatch a SuSFS command and return the kernel's raw `err` code.
+///
+/// [`send`] collapses every code into `Ok`/`Err`; a caller that has to tell
+/// one errno from another (re-applying an already-registered hide reports
+/// `EEXIST`) branches on the code this returns instead.
+pub fn send_errno<T: HasErr>(cmd: u32, payload: &mut T) -> i32 {
     // Pass the payload as a raw `*mut c_void` so the `&mut T` reference
     // isn't moved into the syscall (the FFI signature expects a raw
     // pointer, and the kernel writes back into our buffer, but we still
@@ -46,11 +59,7 @@ pub fn send<T: HasErr>(cmd: u32, payload: &mut T, op_name: &str) -> anyhow::Resu
         )
     };
 
-    let err = payload.err();
-    if err == 0 || err == ERR_CMD_NOT_SUPPORTED {
-        return Ok(());
-    }
-    anyhow::bail!("{op_name}: kernel returned err={err}")
+    payload.err()
 }
 
 /// Convenience wrapper: read the `err` field of a SuSFS payload struct.
