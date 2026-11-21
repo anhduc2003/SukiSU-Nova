@@ -16,9 +16,12 @@
 BANKING_APPS="com.vcb vn.com.techcombank.bb.app com.mbmobile vn.com.bidv.direct vn.com.bidv.softotp com.vietinbank.ipay com.vnpay.vpbankonline com.tpb.mb.gprsandroid"
 
 # Root-detection tester apps. They read the hardware attestation, so they are
-# the ones TrickyStore has to serve a forged record to; the package names are
-# from each project's own repository.
-DETECTOR_APPS="com.eltavine.duckdetector zip.ruru.audit io.github.a13e300.momo"
+# the ones TrickyStore has to serve a forged record to. The names come from
+# each project's build file or its author's repository: Duck Detector is
+# com.eltavine.duckdetector (eltavine/Duck-Detector-Refactoring, the "new"
+# branch of byxiaorun/Ruru ships as com.byxiaorun.detector, and vvb2060's
+# MagiskDetector repo lists Momo as io.github.vvb2060.momo).
+DETECTOR_APPS="com.eltavine.duckdetector com.byxiaorun.detector io.github.vvb2060.momo"
 
 BANKING_COUNT=0
 BANKING_NAMES=
