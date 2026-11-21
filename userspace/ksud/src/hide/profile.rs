@@ -21,8 +21,8 @@ pub enum HideProfile {
     /// Light plus the other root implementations and the injection daemons
     /// (LSPosed, Zygisk Next, APatch) that detectors enumerate.
     Balanced = 2,
-    /// Balanced plus whole-directory hides and the mapped paths that
-    /// `/proc/<pid>/maps` probes look for.
+    /// Balanced plus the whole `/data/adb` tree, so a root directory added
+    /// later is covered without a table change.
     Aggressive = 3,
 }
 

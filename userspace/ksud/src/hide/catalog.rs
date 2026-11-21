@@ -9,11 +9,12 @@
 //! matches the on-disk spelling, and most rows (`/data/adb/magisk`,
 //! `/data/adb/lspd`, …) belong to other projects and have no constant here.
 //!
-//! Every row is registered with `sus_path`. `sus_map` is deliberately not
-//! used: its kernel-side matcher keys on the supplied path, so a directory
-//! row would not cover the libraries mapped out of it, and a file row would
-//! have to name a `.so` whose path differs per install. The whole-tree row
-//! at the aggressive level covers the same ground through `sus_path`.
+//! Every row is registered with `sus_path`, which filters path lookup. It
+//! does not filter `/proc/<pid>/maps`, so this table provides no map-level
+//! coverage: `sus_map` is a separate command with its own list, and it stays
+//! a manual setting because a directory row would not cover the libraries
+//! mapped out of it and a file row would have to name a `.so` whose path
+//! differs per install.
 
 use super::profile::HideProfile;
 
