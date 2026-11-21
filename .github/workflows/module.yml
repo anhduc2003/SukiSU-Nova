@@ -1,9 +1,10 @@
 name: Build NovaHide module
 
 # Builds the flashable module zip from `module/` and publishes it as the
-# `novahide` artifact. Like the other workflows here this targets the
-# self-hosted runner: the checkout and the artifact go through plain scripts
-# and ${CI_ARTIFACT_ROOT}, never through a marketplace action.
+# `novahide` artifact. Like the other workflows here this uses plain scripts
+# and ${CI_ARTIFACT_ROOT} instead of a marketplace action, so it runs on the
+# self-hosted runner and, with the direct-clone fallback, on a GitHub-hosted
+# one.
 #
 # The behavioural harness (module/tests/run-tests.sh) is not run here: it needs
 # root and a mount namespace, which the runner containers do not grant. It runs
