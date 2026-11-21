@@ -11,7 +11,7 @@
 <main id="app">
   <header class="head">
     <div>
-      <h1>NovaHide</h1>
+      <h1>NovaHide <span class="dot" id="dot"></span></h1>
       <p class="sub" id="device">reading device state…</p>
     </div>
     <span class="chip" id="profile">—</span>
@@ -20,9 +20,9 @@
   <div id="notice" class="notice" hidden></div>
 
   <section class="verdicts" aria-label="Play Integrity readiness">
-    <div class="verdict" id="v-basic"><span class="label">BASIC</span><span class="value">—</span></div>
-    <div class="verdict" id="v-device"><span class="label">DEVICE</span><span class="value">—</span></div>
-    <div class="verdict" id="v-strong"><span class="label">STRONG</span><span class="value">—</span></div>
+    <div class="verdict" id="v-basic"><span class="label">BASIC</span><span class="value">—</span><span class="sub" hidden></span></div>
+    <div class="verdict" id="v-device"><span class="label">DEVICE</span><span class="value">—</span><span class="sub" hidden></span></div>
+    <div class="verdict" id="v-strong"><span class="label">STRONG</span><span class="value">—</span><span class="sub" hidden></span></div>
   </section>
 
   <section class="stats">

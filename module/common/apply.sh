@@ -62,6 +62,7 @@ apply_all() {
         if [ "$CFG_SPOOF_BOOTCONFIG" = 1 ]; then
             spoof_bootconfig
         fi
+        spoof_uname
     fi
     if [ "$CFG_CONFIGURE_COMPANIONS" = 1 ]; then
         collect_companions write
@@ -274,6 +275,38 @@ apply_maps() {
         fi
     done < "$list"
     log_info "maps: $MAPS_HIDDEN payload(s) hidden"
+}
+
+# Spoof the kernel string (`uname`, /proc/version) for non-su processes.
+#
+# A custom kernel release is a tell in its own right: detector apps compare
+# what the device reports with what the stock ROM ships. SuSFS can hold a
+# fake release and version in kernel memory, but only the user knows the
+# stock values, so both config keys must be set for this to do anything. The
+# spoof lives in kernel memory and clears at the next boot, so it is applied
+# on every pass, like the log setting.
+spoof_uname() {
+    UNAME_STATE=off
+    if [ -z "$CFG_UNAME_RELEASE" ] && [ -z "$CFG_UNAME_VERSION" ]; then
+        return 0
+    fi
+    if [ "$SUSFS_AVAILABLE" != 1 ]; then
+        UNAME_STATE="unavailable"
+        log_warn "uname: no SuSFS on this kernel, leaving the kernel string alone"
+        return 0
+    fi
+    if [ -z "$CFG_UNAME_RELEASE" ] || [ -z "$CFG_UNAME_VERSION" ]; then
+        UNAME_STATE=partial
+        log_warn "uname: set both UNAME_RELEASE and UNAME_VERSION, doing nothing"
+        return 0
+    fi
+    if "$KSUD" susfs set-uname "$CFG_UNAME_RELEASE" "$CFG_UNAME_VERSION" >/dev/null 2>&1; then
+        UNAME_STATE=spoofed
+        log_info "uname: kernel string spoofed for non-su processes"
+    else
+        UNAME_STATE=refused
+        log_warn "uname: the kernel refused the string"
+    fi
 }
 
 # Serve a sanitised /proc/bootconfig through SuSFS.

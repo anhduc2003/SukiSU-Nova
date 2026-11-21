@@ -431,6 +431,23 @@ rm -f /data/adb/novahide/disabled.list
 rm -rf /data/adb/modules/pif /data/adb/modules/zygisknext
 sed -i 's/^AUTO_DISABLE_CONFLICTS=1$/AUTO_DISABLE_CONFLICTS=0/' /data/adb/novahide/config.conf
 
+echo "== uname spoof"
+: > "$CALLS"
+run_script action.sh action-uname0 apply aggressive
+assert_not_contains "an unconfigured kernel string is left alone" "$CALLS" "set-uname"
+sed -i 's/^UNAME_RELEASE=$/UNAME_RELEASE=6.1.115-android14/' /data/adb/novahide/config.conf
+: > "$CALLS"
+run_script action.sh action-uname1 apply aggressive
+assert_not_contains "a half-set kernel string does nothing" "$CALLS" "set-uname"
+assert_contains "the half-set warning is logged" "$OUT/action-uname1.log" "set both UNAME_RELEASE and UNAME_VERSION"
+sed -i 's/^UNAME_VERSION=$/UNAME_VERSION=#1 SMP PREEMPT Thu Jan 1 00:00:00 UTC 1970/' /data/adb/novahide/config.conf
+: > "$CALLS"
+run_script action.sh action-uname2 apply aggressive
+assert_contains "the kernel string is spoofed with both values" "$CALLS" "susfs set-uname 6.1.115-android14 #1 SMP PREEMPT Thu Jan 1 00:00:00 UTC 1970"
+assert_contains "the apply reports the spoof" "$OUT/action-uname2.log" "spoofed for non-su processes"
+sed -i 's/^UNAME_RELEASE=6.1.115-android14$/UNAME_RELEASE=/' /data/adb/novahide/config.conf
+sed -i 's/^UNAME_VERSION=.*$/UNAME_VERSION=/' /data/adb/novahide/config.conf
+
 echo "== disabled fingerprint"
 : > /data/adb/modules/playintegrityfix/disable
 run_script action.sh action-disabled status

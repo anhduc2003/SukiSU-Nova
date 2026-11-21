@@ -98,10 +98,28 @@
     function setVerdict(id, text) {
         var el = $(id);
         var value = el.querySelector('.value');
-        value.textContent = text;
+        var sub = el.querySelector('.sub');
+        var main = text;
+        var detail = '';
+        var split = text.indexOf(': ');
+        if (split > 0) {
+            main = text.slice(0, split);
+            detail = text.slice(split + 2);
+        }
+        value.textContent = main;
+        if (sub) {
+            sub.hidden = !detail;
+            sub.textContent = detail;
+        }
         var ready = /^ready/.test(text);
         el.classList.toggle('ok', ready);
         el.classList.toggle('warn', !ready);
+    }
+
+    function setDot(state) {
+        var el = $('dot');
+        el.classList.toggle('ok', state === 'ok');
+        el.classList.toggle('bad', state === 'bad');
     }
 
     function setStat(id, text) {
@@ -156,6 +174,7 @@
                 : 'unavailable'],
             ['features', data.features || '—'],
             ['zygisk', data.zygisk || '—'],
+            ['uname', data.uname || '—'],
             ['banking', bankingApps(data.banking)],
             ['bank risk', bankRisk(data.banking)],
             ['log', data.log || '—']
@@ -216,7 +235,10 @@
     }
 
     function severityClass(severity) {
-        if (severity === 'high' || severity === 'medium') {
+        if (severity === 'high') {
+            return 'bad';
+        }
+        if (severity === 'medium') {
             return 'warn';
         }
         return '';
@@ -262,8 +284,10 @@
             var lines = res.out.trim().split('\n');
             render(JSON.parse(lines[lines.length - 1]));
             setNotice('');
+            setDot('ok');
         } catch (err) {
             setNotice('Could not read the module state: ' + err.message);
+            setDot('bad');
         } finally {
             setBusy(false);
         }

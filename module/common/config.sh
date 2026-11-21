@@ -16,6 +16,8 @@ cfg_defaults() {
     CFG_STATUS_IN_DESCRIPTION=1
     CFG_SUSFS_KERNEL_LOG=0
     CFG_AUTO_DISABLE_CONFLICTS=0
+    CFG_UNAME_RELEASE=
+    CFG_UNAME_VERSION=
     CFG_EXTRA_BANKING_APPS=
 }
 
@@ -38,6 +40,8 @@ cfg_load() {
                 STATUS_IN_DESCRIPTION) CFG_STATUS_IN_DESCRIPTION=$value ;;
                 SUSFS_KERNEL_LOG) CFG_SUSFS_KERNEL_LOG=$value ;;
                 AUTO_DISABLE_CONFLICTS) CFG_AUTO_DISABLE_CONFLICTS=$value ;;
+                UNAME_RELEASE) CFG_UNAME_RELEASE=$value ;;
+                UNAME_VERSION) CFG_UNAME_VERSION=$value ;;
                 EXTRA_BANKING_APPS) CFG_EXTRA_BANKING_APPS=$value ;;
             esac
         done < "$CONFIG_FILE"
@@ -63,6 +67,10 @@ cfg_validate() {
     CFG_STATUS_IN_DESCRIPTION=$(cfg_flag "$CFG_STATUS_IN_DESCRIPTION" STATUS_IN_DESCRIPTION)
     CFG_SUSFS_KERNEL_LOG=$(cfg_flag "$CFG_SUSFS_KERNEL_LOG" SUSFS_KERNEL_LOG)
     CFG_AUTO_DISABLE_CONFLICTS=$(cfg_flag "$CFG_AUTO_DISABLE_CONFLICTS" AUTO_DISABLE_CONFLICTS)
+    # Kernel strings are short and printable; anything else in the value is a
+    # typo or an injection attempt, and both fail the same way.
+    CFG_UNAME_RELEASE=$(printf '%s' "$CFG_UNAME_RELEASE" | tr -cd 'A-Za-z0-9._: #-')
+    CFG_UNAME_VERSION=$(printf '%s' "$CFG_UNAME_VERSION" | tr -cd 'A-Za-z0-9._: #-')
     # Only package-name characters survive, so a stray quote in the file
     # cannot turn into an argument to anything.
     CFG_EXTRA_BANKING_APPS=$(printf '%s' "$CFG_EXTRA_BANKING_APPS" | tr ',' ' ' | tr -cd 'A-Za-z0-9._ \n')
@@ -132,6 +140,14 @@ SUSFS_KERNEL_LOG=0
 # Purge traces prunes it to the modules whose marker is still on disk, so a
 # module disabled this boot keeps being reported until the reboot.
 AUTO_DISABLE_CONFLICTS=0
+
+# Detector apps read the kernel string (`uname`, /proc/version), and a custom
+# release like a kernel fork's name is a tell SuSFS can hide. Put the stock
+# ROM's values here, both of them, exactly as a stock device reports them
+# (read them on a stock device or from its boot image). Empty, the default,
+# touches nothing.
+UNAME_RELEASE=
+UNAME_VERSION=
 
 # Banking apps this module does not know, space or comma separated. The list is
 # only used by the report: hiding applies to every app either way.

@@ -70,6 +70,7 @@ or re-add a path with a different meaning.
 | `STATUS_IN_DESCRIPTION` | `1` | Put the last run's summary into `module.prop`. |
 | `SUSFS_KERNEL_LOG` | `0` | `1` turns SuSFS kernel logging back on for debugging. |
 | `AUTO_DISABLE_CONFLICTS` | `0` | `1` also disables the conflicting module NovaHide names for a fixable conflict (see "Module conflicts"). Takes effect at the next boot, once per module. |
+| `UNAME_RELEASE`, `UNAME_VERSION` | empty | The stock kernel release and version strings, both required; when set, SuSFS serves them to non-su processes instead of the custom kernel's own (see "Against Duck Detector"). |
 
 `PROFILE` controls the SuSFS side: the path packs, the extra self paths, mount
 hiding, map hiding, the bootconfig and the kernel log. `off` registers nothing
@@ -126,6 +127,34 @@ marker is still on disk, which keeps a module disabled this boot reported
 until the reboot and lets NovaHide act on the same conflict again afterwards.
 Which of the two Zygisk stacks to keep is always yours, so re-check the
 WebUI after switching the flag on.
+
+## Against Duck Detector
+
+Duck Detector (eltavine's Duck-Detector-Refactoring) scans a device locally,
+without root: bootloader state, custom ROM traces, dangerous apps, kernel
+integrity, LSPosed, memory tools, mount manipulation, native root, Play
+Integrity Fix, SELinux, system properties, TEE attestation, virtualization
+and Zygisk. What NovaHide does about each:
+
+| Duck check | Covered by | Notes |
+|---|---|---|
+| Native root, su binaries | SuSFS path packs: the classic `su` locations from `light`, the whole `/data/adb` tree from `aggressive` | Runs on the Ace 5's SuSFS kernel; nothing to install |
+| Bootloader status | The forced properties (`verifiedbootstate`, `vbmeta`, `flash.locked`, warranty bits), the bootconfig spoof, `avc_spoof` | The report's BASIC verdict tracks exactly these |
+| System properties | `HARDEN_PROPS`: `ro.debuggable`, `ro.build.type`, `ro.build.tags`, `ro.secure`, `ro.adb.secure`, … | |
+| Mount manipulation | `mount_hide` kernel feature | |
+| SELinux | `selinux_hide` + `avc_spoof` | A permissive SELinux state is reported, never flipped |
+| Zygisk | Payload libraries hidden from `/proc/<pid>/maps` (`HIDE_MAPS`), staging dirs in the path packs | The runtime dir `/data/system/nyazygisk` stays readable on purpose: hiding it breaks the injection it is part of |
+| LSPosed | `/data/adb/lspd` hidden from `balanced` up | Its Zygisk-side libraries are a `sus_map` entry away, not automatic |
+| Play Integrity Fix | PIF's module and `pif.json` sit under `/data/adb` | Hidden from `aggressive`; the fingerprint's own consistency is PIF's job |
+| Kernel integrity | `UNAME_RELEASE` / `UNAME_VERSION` | A custom kernel release is a tell SuSFS can hide; put the stock ROM's two strings in the config and every pass applies them. Without them this check stays red by design — NovaHide never invents kernel values |
+| TEE / attestation | TrickyStore + a keybox you provide | No module can invent a keybox; without one, attestation checks stay red and the report says so |
+| Dangerous apps | Report-only | The manager and hooking apps are visible to `PackageManager`, which no root hiding changes; repackage the manager, and the banking audit names what it sees |
+| Virtualization | Nothing to do | A bare device has no VM traces |
+
+NovaHide cannot run Duck Detector for you: it is an app-side scanner and this
+report is built from what the module knows. The on-device test is the last
+word — flash, apply `aggressive`, reboot, run Duck, and expand each red card:
+the table above says which card maps to which knob.
 
 ## Vietnamese banking apps
 

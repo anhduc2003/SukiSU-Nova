@@ -63,14 +63,21 @@ rm -f "$zipfile"
     zip -rXq "$root/$zipfile" . -x 'tests/*' -x '*.DS_Store' -x '*/.DS_Store'
 )
 
+listing=$(unzip -Z1 "$zipfile") || {
+    echo "build-module: could not list $zipfile" >&2
+    exit 1
+}
 for required in module.prop customize.sh post-fs-data.sh service.sh action.sh uninstall.sh \
     webroot/index.html META-INF/com/google/android/update-binary; do
-    if ! unzip -Z1 "$zipfile" | grep -qx "$required"; then
+    # grep runs against the captured listing: a direct `unzip | grep -q`
+    # closes the pipe on the first match and SIGPIPEs unzip, which
+    # `set -o pipefail` turns into a phantom failure.
+    if ! printf '%s\n' "$listing" | grep -qx "$required"; then
         echo "build-module: $required is not at the root of $zipfile" >&2
         exit 1
     fi
 done
-if unzip -Z1 "$zipfile" | grep -q '^tests/'; then
+if printf '%s\n' "$listing" | grep -q '^tests/'; then
     echo "build-module: the archive contains the test harness" >&2
     exit 1
 fi

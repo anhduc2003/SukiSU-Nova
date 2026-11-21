@@ -17,6 +17,7 @@ HIDE_RECORDED=0
 MAPS_HIDDEN=0
 MOUNT_HIDING=
 BOOTCONFIG_STATE=skipped
+UNAME_STATE=off
 PROPS_VERIFIEDBOOT=
 
 json_escape() {
@@ -155,6 +156,26 @@ props_line() {
     fi
 }
 
+# The kernel string is held in kernel memory, and SuSFS cannot report it
+# back, so a status run only says what the config asks for.
+uname_line() {
+    if [ "$RUN_MODE" = apply ]; then
+        case "$UNAME_STATE" in
+            spoofed) printf 'spoofed for non-su processes' ;;
+            refused) printf 'the kernel refused the string' ;;
+            unavailable) printf 'no SuSFS on this kernel' ;;
+            partial) printf 'set both UNAME_RELEASE and UNAME_VERSION' ;;
+            *) printf 'not configured' ;;
+        esac
+        return 0
+    fi
+    if [ -n "$CFG_UNAME_RELEASE" ] && [ -n "$CFG_UNAME_VERSION" ]; then
+        printf 'configured; applied by the last apply pass'
+    else
+        printf 'not configured'
+    fi
+}
+
 report_text() {
     printf 'NovaHide %s - %s [%s %s]\n' \
         "$(module_version)" "$DEVICE_LABEL" "${DEVICE_CODENAME:-?}" "${DEVICE_MODEL:-?}"
@@ -179,6 +200,7 @@ report_text() {
     esac
     printf '%-12s %s\n' "maps" "$(maps_line)"
     printf '%-12s %s\n' "bootconfig" "$BOOTCONFIG_STATE"
+    printf '%-12s %s\n' "uname" "$(uname_line)"
     printf '%-12s %s\n' "zygisk" "$ZYGISK_STATE"
     printf '%s\n' "companions"
     companions_text
@@ -228,8 +250,9 @@ report_json() {
         0) mount_flag=false ;;
         *) mount_flag=null ;;
     esac
-    printf '"mountHiding":%s,"maps":%s,"bootconfig":"%s","zygisk":"%s",' \
-        "$mount_flag" "${MAPS_HIDDEN:-0}" "$(json_escape "$BOOTCONFIG_STATE")" "$(json_escape "$ZYGISK_STATE")"
+    printf '"mountHiding":%s,"maps":%s,"bootconfig":"%s","uname":"%s","zygisk":"%s",' \
+        "$mount_flag" "${MAPS_HIDDEN:-0}" "$(json_escape "$BOOTCONFIG_STATE")" \
+        "$(json_escape "$(uname_line)")" "$(json_escape "$ZYGISK_STATE")"
     printf '"companions":%s,' "$(companions_json)"
     printf '"conflicts":%s,' "$(conflicts_json)"
     printf '"banking":%s,' "$(banking_json)"
