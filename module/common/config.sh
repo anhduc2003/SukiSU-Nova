@@ -15,6 +15,7 @@ cfg_defaults() {
     CFG_SPOOF_BOOTCONFIG=1
     CFG_STATUS_IN_DESCRIPTION=1
     CFG_SUSFS_KERNEL_LOG=0
+    CFG_AUTO_DISABLE_CONFLICTS=0
     CFG_EXTRA_BANKING_APPS=
 }
 
@@ -36,6 +37,7 @@ cfg_load() {
                 SPOOF_BOOTCONFIG) CFG_SPOOF_BOOTCONFIG=$value ;;
                 STATUS_IN_DESCRIPTION) CFG_STATUS_IN_DESCRIPTION=$value ;;
                 SUSFS_KERNEL_LOG) CFG_SUSFS_KERNEL_LOG=$value ;;
+                AUTO_DISABLE_CONFLICTS) CFG_AUTO_DISABLE_CONFLICTS=$value ;;
                 EXTRA_BANKING_APPS) CFG_EXTRA_BANKING_APPS=$value ;;
             esac
         done < "$CONFIG_FILE"
@@ -60,6 +62,7 @@ cfg_validate() {
     CFG_SPOOF_BOOTCONFIG=$(cfg_flag "$CFG_SPOOF_BOOTCONFIG" SPOOF_BOOTCONFIG)
     CFG_STATUS_IN_DESCRIPTION=$(cfg_flag "$CFG_STATUS_IN_DESCRIPTION" STATUS_IN_DESCRIPTION)
     CFG_SUSFS_KERNEL_LOG=$(cfg_flag "$CFG_SUSFS_KERNEL_LOG" SUSFS_KERNEL_LOG)
+    CFG_AUTO_DISABLE_CONFLICTS=$(cfg_flag "$CFG_AUTO_DISABLE_CONFLICTS" AUTO_DISABLE_CONFLICTS)
     # Only package-name characters survive, so a stray quote in the file
     # cannot turn into an argument to anything.
     CFG_EXTRA_BANKING_APPS=$(printf '%s' "$CFG_EXTRA_BANKING_APPS" | tr ',' ' ' | tr -cd 'A-Za-z0-9._ \n')
@@ -118,6 +121,14 @@ STATUS_IN_DESCRIPTION=1
 # SuSFS logs every operation to the kernel log, where a process that can read
 # dmesg sees the hides being registered. 1 turns the log back on for debugging.
 SUSFS_KERNEL_LOG=0
+
+# Conflicts between the modules installed here can leak root on their own
+# (two Zygisk stacks, two fingerprint modules, a second hide pack). 0 reports
+# them and changes nothing. 1 also drops the disable marker on the module
+# NovaHide names for a fixable conflict; that takes effect at the next boot,
+# and NovaHide never re-enables a module, so delete the marker yourself if
+# you want it back.
+AUTO_DISABLE_CONFLICTS=0
 
 # Banking apps this module does not know, space or comma separated. The list is
 # only used by the report: hiding applies to every app either way.

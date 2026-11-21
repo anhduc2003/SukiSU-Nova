@@ -186,6 +186,40 @@
             li.appendChild(note);
             list.appendChild(li);
         });
+
+        var conflicts = $('conflicts');
+        conflicts.textContent = '';
+        (data.conflicts || []).forEach(function (row) {
+            var li = document.createElement('li');
+            var name = document.createElement('span');
+            name.className = 'name';
+            name.textContent = row.name;
+            var state = document.createElement('span');
+            state.className = 'state ' + severityClass(row.severity);
+            state.textContent = row.severity;
+            var note = document.createElement('span');
+            note.className = 'note';
+            note.textContent = row.note;
+            li.appendChild(name);
+            li.appendChild(state);
+            li.appendChild(note);
+            conflicts.appendChild(li);
+        });
+        if (!(data.conflicts || []).length) {
+            var none = document.createElement('li');
+            var noneNote = document.createElement('span');
+            noneNote.className = 'note';
+            noneNote.textContent = 'no conflict detected between the installed modules';
+            none.appendChild(noneNote);
+            conflicts.appendChild(none);
+        }
+    }
+
+    function severityClass(severity) {
+        if (severity === 'high' || severity === 'medium') {
+            return 'warn';
+        }
+        return '';
     }
 
     function bankingApps(banking) {

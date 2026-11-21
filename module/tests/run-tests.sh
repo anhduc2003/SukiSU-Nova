@@ -402,6 +402,24 @@ assert_contains "a comma-separated extra is reported" "$OUT/action-banking.log" 
 assert_contains "the second comma-separated extra is reported" "$OUT/action-banking.log" "com.example.extra2"
 mv -f /data/adb/novahide/config.conf.keep /data/adb/novahide/config.conf
 
+echo "== module conflicts"
+run_script action.sh action-conflicts json
+assert_contains "the double zygisk conflict is reported" "$OUT/action-conflicts.log" '{"severity":"high","name":"Zygisk twice"'
+run_script action.sh action-conflicts-text status
+assert_contains "the status text lists the conflict" "$OUT/action-conflicts-text.log" "Zygisk twice"
+mkdir -p /data/adb/modules/pif /data/adb/modules/zygisknext
+run_script action.sh action-conflicts-multi json
+assert_contains "two active fingerprint modules conflict" "$OUT/action-conflicts-multi.log" '"name":"PIF twice"'
+assert_ok test ! -f /data/adb/modules/zygisknext/disable
+sed -i 's/^AUTO_DISABLE_CONFLICTS=0$/AUTO_DISABLE_CONFLICTS=1/' /data/adb/novahide/config.conf
+run_script action.sh action-conflicts-fix apply balanced
+assert_eq "the remediation run exits 0" "$?" "0"
+assert_ok test -f /data/adb/modules/zygisknext/disable
+assert_contains "the disabled module is logged" /data/adb/novahide/novahide.log "disabled /data/adb/modules/zygisknext"
+rm -f /data/adb/modules/zygisknext/disable
+rm -rf /data/adb/modules/pif /data/adb/modules/zygisknext
+sed -i 's/^AUTO_DISABLE_CONFLICTS=1$/AUTO_DISABLE_CONFLICTS=0/' /data/adb/novahide/config.conf
+
 echo "== disabled fingerprint"
 : > /data/adb/modules/playintegrityfix/disable
 run_script action.sh action-disabled status

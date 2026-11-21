@@ -14,6 +14,7 @@ LOG_FILE=$DATA_DIR/novahide.log
 STATUS_FILE=$DATA_DIR/status.txt
 STATE_FILE=$DATA_DIR/last-apply
 COMPANIONS_FILE=$DATA_DIR/companions.txt
+CONFLICTS_FILE=$DATA_DIR/conflicts.txt
 MODULE_PROP=$MODDIR/module.prop
 
 # Version from module.prop, so the scripts never carry a second copy of it.

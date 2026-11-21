@@ -182,6 +182,8 @@ report_text() {
     printf '%-12s %s\n' "zygisk" "$ZYGISK_STATE"
     printf '%s\n' "companions"
     companions_text
+    printf '%s\n' "module conflicts"
+    conflicts_text
     printf '%s\n' "banking"
     banking_text
     printf '%s\n' "verdict"
@@ -229,6 +231,7 @@ report_json() {
     printf '"mountHiding":%s,"maps":%s,"bootconfig":"%s","zygisk":"%s",' \
         "$mount_flag" "${MAPS_HIDDEN:-0}" "$(json_escape "$BOOTCONFIG_STATE")" "$(json_escape "$ZYGISK_STATE")"
     printf '"companions":%s,' "$(companions_json)"
+    printf '"conflicts":%s,' "$(conflicts_json)"
     printf '"banking":%s,' "$(banking_json)"
     printf '"verdict":{"basic":"%s","device":"%s","strong":"%s"},' \
         "$(json_escape "$(verdict_basic)")" "$(json_escape "$(verdict_device)")" \

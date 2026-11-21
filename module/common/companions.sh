@@ -36,6 +36,8 @@ collect_companions() {
     other_root_row
 
     log_info "companions: $(companions_text | tr '\n' ';')"
+    conflicts_scan "$mode"
+    log_info "conflicts: $(conflicts_count) detected"
 }
 
 add_companion() {
@@ -249,12 +251,162 @@ other_root_row() {
     fi
 }
 
+# A module the manager would skip: its directory is there but carries a
+# disable or remove marker.
+module_dir_active() {
+    [ -d "$1" ] || return 1
+    [ -f "$1/disable" ] && return 1
+    [ -f "$1/remove" ] && return 1
+    return 0
+}
+
+module_disable() {
+    dir=$1
+    if : > "$dir/disable" 2>/dev/null; then
+        chmod 0644 "$dir/disable" 2>/dev/null
+        chown 0:0 "$dir/disable" 2>/dev/null
+        log_warn "conflicts: disabled $dir (delete the disable marker to undo)"
+        return 0
+    fi
+    log_warn "conflicts: could not write the disable marker in $dir"
+    return 1
+}
+
+# Conflicts between the modules installed here leak root on their own: two
+# Zygisk stacks inject the same processes, two fingerprint modules fight over
+# the same props, a second hide pack undoes this one's registrations.
+#
+# The scan is a report. It only disables a module when the user switched
+# AUTO_DISABLE_CONFLICTS on, only in a write pass, and only for the two
+# conflicts with an unambiguous loser; nothing is ever re-enabled, and the
+# disable marker is the user's to delete.
+conflicts_scan() {
+    mode=$1
+    : > "$CONFLICTS_FILE"
+
+    # One Zygisk at a time. Zygisk Next is installed when its data directory
+    # exists; if no module directory of a known name is found, treat it as
+    # active and report-only, since there is nothing safe to disable.
+    zn_module=
+    for dir in /data/adb/modules/zygisksu /data/adb/modules/zygisknext \
+        /data/adb/modules/zygisk_next /data/adb/modules/zygisk-next; do
+        if [ -d "$dir" ]; then
+            zn_module=$dir
+            break
+        fi
+    done
+    zn_active=0
+    if [ -d /data/adb/zygisksu ]; then
+        if [ -z "$zn_module" ] || module_dir_active "$zn_module"; then
+            zn_active=1
+        fi
+    fi
+    if [ "$ZYGISK_STATE" = running ] && [ "$zn_active" = 1 ]; then
+        if [ "$mode" = write ] && [ "$CFG_AUTO_DISABLE_CONFLICTS" = 1 ] &&
+            [ -n "$zn_module" ] && module_disable "$zn_module"; then
+            add_conflict high "Zygisk twice" \
+                "built-in Zygisk and Zygisk Next both inject; Zygisk Next was disabled, back at the next boot if the marker is deleted"
+        else
+            add_conflict high "Zygisk twice" \
+                "built-in Zygisk and Zygisk Next both inject; keep one, the other is the leak"
+        fi
+    fi
+
+    # Fingerprint modules overwrite each other's props; which one to keep is
+    # the user's call, so this one is never auto-fixed.
+    pif_active=0
+    for dir in /data/adb/modules/playintegrityfix /data/adb/modules/pif \
+        /data/adb/modules/pif-next /data/adb/modules/playintegrity; do
+        module_dir_active "$dir" && pif_active=$((pif_active + 1))
+    done
+    if [ "$pif_active" -gt 1 ]; then
+        add_conflict high "PIF twice" \
+            "$pif_active fingerprint modules are active; they fight over the same props, keep one"
+    fi
+
+    if module_dir_active /data/adb/modules/susfs_manager; then
+        if [ "$mode" = write ] && [ "$CFG_AUTO_DISABLE_CONFLICTS" = 1 ] &&
+            module_disable /data/adb/modules/susfs_manager; then
+            add_conflict medium "SuSFS pack twice" \
+                "susfs_manager also applies a hide pack; it was disabled, back at the next boot if the marker is deleted"
+        else
+            add_conflict medium "SuSFS pack twice" \
+                "susfs_manager also applies a hide pack; the two packs can disagree on what stays mounted"
+        fi
+    fi
+
+    if [ -d /data/adb/magisk ]; then
+        add_conflict high "second root" \
+            "Magisk is installed as well; two root stacks fight over mounts and denials"
+    fi
+    if [ -d /data/adb/ap ]; then
+        add_conflict high "second root" \
+            "APatch is installed as well; two root stacks fight over mounts and denials"
+    fi
+
+    # Not leaks, but compatibility facts: these modules need a Zygisk to hook.
+    if [ "$ZYGISK_STATE" != running ] && [ "$zn_active" = 0 ]; then
+        if [ -d /data/adb/shamiko ]; then
+            add_conflict info "Shamiko idle" \
+                "Shamiko needs a Zygisk to hook; with none running it does nothing"
+        fi
+        if [ -d /data/adb/modules/hide_my_applist ] || [ -d /data/adb/modules/hma ] ||
+            [ -d /data/data/com.tsng.hidemyapplist ]; then
+            add_conflict info "HMA idle" \
+                "Hide My Applist needs a Zygisk to hook; with none running it does nothing"
+        fi
+    fi
+}
+
+add_conflict() {
+    # severity|name|note; a note must not contain a pipe.
+    printf '%s|%s|%s\n' "$1" "$2" "$3" >> "$CONFLICTS_FILE"
+}
+
+conflicts_count() {
+    count=0
+    if [ -f "$CONFLICTS_FILE" ]; then
+        count=$(grep -c . "$CONFLICTS_FILE" 2>/dev/null)
+        [ -n "$count" ] || count=0
+    fi
+    printf '%s' "$count"
+}
+
 companions_text() {
     [ -f "$COMPANIONS_FILE" ] || return 0
     while IFS='|' read -r name state note; do
         [ -n "$name" ] || continue
         printf '  %-17s %-9s %s\n' "$name" "$state" "$note"
     done < "$COMPANIONS_FILE"
+}
+
+conflicts_text() {
+    if [ ! -f "$CONFLICTS_FILE" ] || [ "$(conflicts_count)" = 0 ]; then
+        printf '  %-17s %s\n' "none" "no conflict detected between the installed modules"
+        return 0
+    fi
+    while IFS='|' read -r severity name note; do
+        [ -n "$name" ] || continue
+        printf '  %-17s %-9s %s\n' "$name" "$severity" "$note"
+    done < "$CONFLICTS_FILE"
+}
+
+conflicts_json() {
+    printf '['
+    first=1
+    if [ -f "$CONFLICTS_FILE" ]; then
+        while IFS='|' read -r severity name note; do
+            [ -n "$name" ] || continue
+            if [ "$first" = 1 ]; then
+                first=0
+            else
+                printf ','
+            fi
+            printf '{"severity":"%s","name":"%s","note":"%s"}' \
+                "$(json_escape "$severity")" "$(json_escape "$name")" "$(json_escape "$note")"
+        done < "$CONFLICTS_FILE"
+    fi
+    printf ']'
 }
 
 companions_json() {

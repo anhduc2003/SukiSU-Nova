@@ -36,7 +36,8 @@ It bundles nobody else's binaries. It drives what is already on the device.
 
 ## Install
 
-1. SukiSU Nova → Modules → Install from storage → pick `novahide-v1.0.0.zip`.
+1. SukiSU Nova → Modules → Install from storage → pick the built zip,
+   `novahide-v<version>.zip` (the name carries the version in `module.prop`).
 2. Reboot. The first pass runs from `post-fs-data`, before zygote starts.
 3. Or tap the module's action button to apply it immediately, without a reboot.
 
@@ -68,6 +69,7 @@ or re-add a path with a different meaning.
 | `SPOOF_BOOTCONFIG` | `1` | Serve a sanitised `/proc/bootconfig`. |
 | `STATUS_IN_DESCRIPTION` | `1` | Put the last run's summary into `module.prop`. |
 | `SUSFS_KERNEL_LOG` | `0` | `1` turns SuSFS kernel logging back on for debugging. |
+| `AUTO_DISABLE_CONFLICTS` | `0` | `1` also disables the conflicting module NovaHide names for a fixable conflict (see "Module conflicts"). Takes effect at the next boot. |
 
 `PROFILE` controls the SuSFS side: the path packs, the extra self paths, mount
 hiding, map hiding, the bootconfig and the kernel log. `off` registers nothing
@@ -92,6 +94,30 @@ is what most detectors read first.
   itself (`/data/system/nyazygisk`) is deliberately **not** hidden as a path:
   injected processes read their config from it, and hiding it would break the
   injection it is supposed to conceal.
+
+## Module conflicts
+
+Modules can leak root without any detector doing work: two Zygisk stacks
+inject the same processes, two fingerprint modules overwrite each other's
+props, a second hide pack undoes this one's registrations. Every apply and
+every status run scans what is installed and reports what collides, in the
+status report, the WebUI's "Module conflicts" panel, and the JSON.
+
+| Conflict | Severity | What it means |
+|---|---|---|
+| Zygisk twice | high | Built-in Zygisk and Zygisk Next both inject; keep one. Fixable. |
+| PIF twice | high | Two active fingerprint modules fight over the same props; keep one yourself. |
+| SuSFS pack twice | medium | `susfs_manager` also applies a hide pack; the packs can disagree. Fixable. |
+| second root | high | Magisk or APatch is installed as well; two root stacks fight over mounts. |
+| Shamiko idle / HMA idle | info | The module needs a Zygisk to hook; with none running it does nothing. |
+
+The scan is a report by default and changes nothing. With
+`AUTO_DISABLE_CONFLICTS=1`, a write pass (boot or the Apply button) drops the
+disable marker on the losing module of the two fixable conflicts — Zygisk Next
+when the built-in stack runs, and `susfs_manager`. The marker takes effect at
+the next boot, NovaHide never re-enables a module, and deleting the marker
+brings the module back; which of the two Zygisk stacks to keep is always
+yours, so re-check the WebUI after switching the flag on.
 
 ## Vietnamese banking apps
 
@@ -195,7 +221,8 @@ The test harness needs root and a mount namespace. It never touches the host's
 
 ## Bắt đầu nhanh (tiếng Việt)
 
-1. Tải `novahide-v1.0.0.zip`, mở SukiSU Nova → Modules → cài từ bộ nhớ.
+1. Tải file zip vừa build (`novahide-v<version>.zip`, tên mang theo phiên bản
+   trong `module.prop`), mở SukiSU Nova → Modules → cài từ bộ nhớ.
 2. Khởi động lại máy, hoặc bấm nút hành động của module để áp dụng ngay.
 3. Mở WebUI của module để xem trạng thái: BASIC / DEVICE / STRONG, số đường dẫn
    đã ẩn, module ẩn root nào đang cài và còn thiếu gì.
