@@ -6,7 +6,6 @@ use std::io;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
-use crate::hide::profile_or_default;
 use crate::susfs_config::{ModuleConfig, load_module_config};
 use crate::susfs_module::consts::MODULE_PATH;
 use crate::susfs_module::scripts::generate;
@@ -47,7 +46,6 @@ fn install_at(module_path: &Path, config: &ModuleConfig) -> anyhow::Result<()> {
                 &config.build_time_value,
                 config.execute_in_post_fs_data,
                 config.enable_log,
-                profile_or_default(&config.hide_profile),
                 config.enable_hide_bl,
                 config.enable_cleanup_residue,
             ),

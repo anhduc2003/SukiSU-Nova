@@ -59,9 +59,19 @@ pub fn add_sus_map(path: &str) -> anyhow::Result<()> {
 
 /// Shared result mapping for the two commands whose payload is a single
 /// `target_pathname`.
+///
+/// A kernel that has SuSFS but was built without the matching
+/// `CONFIG_KSU_SUSFS_*` option answers [`ERR_CMD_NOT_SUPPORTED`], which is a
+/// real failure here: reporting it as success would claim a hide that the
+/// kernel never registered.
 fn check_path_result(err: i32, op_name: &str) -> anyhow::Result<()> {
-    if err == 0 || err == ERR_CMD_NOT_SUPPORTED || err == -libc::EEXIST {
+    if err == 0 || err == -libc::EEXIST {
         return Ok(());
+    }
+    if err == ERR_CMD_NOT_SUPPORTED {
+        anyhow::bail!(
+            "{op_name}: kernel does not implement this command (SuSFS option not compiled in)"
+        );
     }
     anyhow::bail!("{op_name}: kernel returned err={err}")
 }

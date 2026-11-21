@@ -8,53 +8,24 @@
 //! Paths are literals rather than `crate::defs` constants: a detector
 //! matches the on-disk spelling, and most rows (`/data/adb/magisk`,
 //! `/data/adb/lspd`, …) belong to other projects and have no constant here.
+//!
+//! Every row is registered with `sus_path`. `sus_map` is deliberately not
+//! used: its kernel-side matcher keys on the supplied path, so a directory
+//! row would not cover the libraries mapped out of it, and a file row would
+//! have to name a `.so` whose path differs per install. The whole-tree row
+//! at the aggressive level covers the same ground through `sus_path`.
 
 use super::profile::HideProfile;
 
-/// Which SuSFS command applies an entry.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HideKind {
-    /// `sus_path`: hide the path from every non-root process.
-    Path,
-    /// `sus_map`: hide the path from the `/proc/<pid>/maps` of non-root
-    /// processes, which catches libraries mapped out of a hidden tree.
-    Map,
-}
-
-impl HideKind {
-    /// Name shown by `ksud hide list`.
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Path => "path",
-            Self::Map => "map",
-        }
-    }
-}
-
 /// One fingerprint and the profile that hides it.
 pub struct HideEntry {
-    pub kind: HideKind,
     pub value: &'static str,
     pub min: HideProfile,
     pub why: &'static str,
 }
 
 const fn path(value: &'static str, min: HideProfile, why: &'static str) -> HideEntry {
-    HideEntry {
-        kind: HideKind::Path,
-        value,
-        min,
-        why,
-    }
-}
-
-const fn map(value: &'static str, min: HideProfile, why: &'static str) -> HideEntry {
-    HideEntry {
-        kind: HideKind::Map,
-        value,
-        min,
-        why,
-    }
+    HideEntry { value, min, why }
 }
 
 /// The table. Order is by profile so `ksud hide list` reads as a ramp.
@@ -140,30 +111,10 @@ pub const ENTRIES: &[HideEntry] = &[
         HideProfile::Balanced,
         "Magisk unblock marker",
     ),
-    // ── aggressive: whole trees and mapped paths ────────────────────────────
+    // ── aggressive: the whole tree, including anything added later ──────────
     path(
         "/data/adb",
         HideProfile::Aggressive,
-        "every root implementation's home directory",
-    ),
-    map(
-        "/data/adb",
-        HideProfile::Aggressive,
-        "any library mapped out of a root directory",
-    ),
-    map(
-        "/data/adb/modules",
-        HideProfile::Aggressive,
-        "libraries a module maps into another process",
-    ),
-    map(
-        "/data/adb/nyazygisk",
-        HideProfile::Aggressive,
-        "Zygisk-injected libraries",
-    ),
-    map(
-        "/data/adb/lspd",
-        HideProfile::Aggressive,
-        "LSPosed-injected libraries",
+        "every root implementation's home, and every future subdirectory of it",
     ),
 ];

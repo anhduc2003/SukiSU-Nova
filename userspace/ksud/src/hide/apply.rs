@@ -5,7 +5,7 @@ use std::path::Path;
 
 use anyhow::{Result, bail};
 
-use super::catalog::{ENTRIES, HideEntry, HideKind};
+use super::catalog::{ENTRIES, HideEntry};
 use super::profile::HideProfile;
 use crate::susfs;
 
@@ -43,7 +43,8 @@ impl HideReport {
 /// Errors only when SuSFS itself is unavailable, because then nothing can
 /// be applied at all. A single missing path is a skip instead: most entries
 /// belong to optional modules and are absent by design, so one absent row
-/// must not abort the rest.
+/// must not abort the rest. A row the kernel refuses is also a skip, never a
+/// success, so the counts never claim a hide that was not registered.
 pub fn apply(profile: HideProfile) -> Result<HideReport> {
     if profile == HideProfile::Off {
         return Ok(HideReport {
@@ -78,11 +79,7 @@ fn apply_entry(entry: &HideEntry) -> std::result::Result<(), String> {
     if !Path::new(entry.value).exists() {
         return Err("not present".to_string());
     }
-    let result = match entry.kind {
-        HideKind::Path => susfs::add_sus_path(entry.value),
-        HideKind::Map => susfs::add_sus_map(entry.value),
-    };
-    result.map_err(|err| err.to_string())
+    susfs::add_sus_path(entry.value).map_err(|err| err.to_string())
 }
 
 /// The stored profile, the SuSFS state behind it, and how many entries the
@@ -115,8 +112,7 @@ pub fn list(profile: HideProfile) -> String {
         let mark = if profile.covers(entry.min) { 'x' } else { ' ' };
         let _ = writeln!(
             out,
-            "[{mark}] {:<4} {:<26} from {:<10} {}",
-            entry.kind.as_str(),
+            "[{mark}] {:<26} from {:<10} {}",
             entry.value,
             entry.min.as_str(),
             entry.why
