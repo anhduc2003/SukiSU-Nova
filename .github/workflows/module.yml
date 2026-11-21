@@ -63,11 +63,15 @@ jobs:
             git checkout -q "${GITHUB_SHA}"
           else
             # The ref, not ${GITHUB_SHA}: on a pull_request event the SHA is the
-            # merge commit, which a plain clone does not fetch.
+            # merge commit, which a plain clone does not fetch. The header is
+            # Basic, the scheme git's smart HTTP endpoint accepts; helpers are
+            # disabled so a bad token fails here instead of succeeding quietly.
+            auth=$(printf 'x-access-token:%s' "${TOKEN}" | base64 | tr -d '\n')
             git init -q .
             git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
             set +x
-            git -c "http.https://github.com/.extraHeader=Authorization: token ${TOKEN}" \
+            GIT_TERMINAL_PROMPT=0 git -c credential.helper= \
+              -c "http.https://github.com/.extraHeader=Authorization: Basic ${auth}" \
               fetch -q --depth 1 origin "${GITHUB_REF}"
             set -x
             git checkout -q FETCH_HEAD
