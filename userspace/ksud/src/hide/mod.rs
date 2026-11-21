@@ -14,6 +14,7 @@
 //! ├── profile.rs  ← HideProfile (off / light / balanced / aggressive)
 //! ├── catalog.rs  ← the curated entry table, one row per fingerprint
 //! ├── device.rs   ← vendor rows + the device names that select them
+//! ├── modules.rs  ← settings written into the hiding modules installed here
 //! └── apply.rs    ← applies a profile through `crate::susfs`
 //! ```
 //!
@@ -24,6 +25,7 @@
 pub mod apply;
 pub mod catalog;
 pub mod device;
+pub mod modules;
 pub mod profile;
 
 pub use apply::{apply, list, status};
