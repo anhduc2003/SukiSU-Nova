@@ -108,3 +108,32 @@ EOF
     chmod 0644 "$CONFIG_FILE"
     chown 0:0 "$CONFIG_FILE" 2>/dev/null
 }
+
+# Rewrite one key in place, keeping comments and ordering; a key that is not
+# present is appended. Used when a profile is picked from the action or the
+# WebUI, so the config stays the file that describes the boot behaviour.
+cfg_set() {
+    key=$1
+    value=$2
+    [ -f "$CONFIG_FILE" ] || cfg_write_default
+    tmp=$CONFIG_FILE.tmp
+    if awk -v key="$key" -v value="$value" '
+        BEGIN { done = 0 }
+        $0 ~ "^" key "=" {
+            if (!done) {
+                print key "=" value
+                done = 1
+                next
+            }
+        }
+        { print }
+        END { if (!done) print key "=" value }
+    ' "$CONFIG_FILE" > "$tmp" 2>/dev/null; then
+        mv -f "$tmp" "$CONFIG_FILE"
+        chmod 0644 "$CONFIG_FILE" 2>/dev/null
+        chown 0:0 "$CONFIG_FILE" 2>/dev/null
+    else
+        rm -f "$tmp" 2>/dev/null
+        log_warn "config: could not write $key"
+    fi
+}

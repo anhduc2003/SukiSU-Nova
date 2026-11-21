@@ -12,6 +12,7 @@ DATA_DIR=$ADB_DIR/novahide
 CONFIG_FILE=$DATA_DIR/config.conf
 LOG_FILE=$DATA_DIR/novahide.log
 STATUS_FILE=$DATA_DIR/status.txt
+STATE_FILE=$DATA_DIR/last-apply
 COMPANIONS_FILE=$DATA_DIR/companions.txt
 MODULE_PROP=$MODDIR/module.prop
 

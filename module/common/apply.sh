@@ -28,6 +28,10 @@ apply_all() {
 
     log_init
     cfg_load
+    if [ -n "$requested_profile" ]; then
+        persist_profile "$requested_profile"
+        cfg_load
+    fi
     detect_all
     log_info "apply: start ($(module_version), $DEVICE_LABEL)"
 
@@ -55,13 +59,82 @@ apply_all() {
     # actually reports after the writes, not from what was requested.
     PROPS_VERIFIEDBOOT=$(prop_get ro.boot.verifiedbootstate)
 
+    state_write
     write_status
     update_description
     log_info "apply: done ($PROFILE_USED, $HIDE_APPLIED hidden, verifiedboot=$PROPS_VERIFIEDBOOT)"
 }
 
+# A profile picked from the action or the WebUI is written to both places that
+# can name one: the module config, which is what boot reads, and ksud's own
+# store, which is what `ksud hide status` and the manager's SuSFS screen read.
+# Keeping them in step is why a choice survives a reboot and still shows up
+# where the manager looks for it.
+persist_profile() {
+    profile=$1
+    case "$profile" in
+        auto)
+            cfg_set PROFILE auto
+            "$KSUD" susfs config remove hide_profile >/dev/null 2>&1
+            ;;
+        *)
+            cfg_set PROFILE "$profile"
+            "$KSUD" susfs config set hide_profile "$profile" >/dev/null 2>&1 ||
+                log_warn "hide: could not store profile '$profile'"
+            ;;
+    esac
+}
+
+# `ksud hide apply` always syncs TrickyStore's target list, whatever this module
+# asked for. With CONFIGURE_COMPANIONS=0 the user asked for that file to be
+# left alone, so keep a copy and put it back if the built-in integration
+# changed it. A file that did not exist before is removed again.
+GUARD_ACTIVE=0
+GUARD_EXISTED=0
+TARGET_TXT=/data/adb/tricky_store/target.txt
+TARGET_KEEP=$DATA_DIR/target.txt.keep
+
+guard_companions_start() {
+    GUARD_ACTIVE=0
+    GUARD_EXISTED=0
+    [ "$CFG_CONFIGURE_COMPANIONS" = 1 ] && return 0
+    GUARD_ACTIVE=1
+    if [ -f "$TARGET_TXT" ]; then
+        if cp -f "$TARGET_TXT" "$TARGET_KEEP" 2>/dev/null; then
+            GUARD_EXISTED=1
+        else
+            GUARD_ACTIVE=0
+            log_warn "companions: could not snapshot target.txt"
+        fi
+    fi
+}
+
+guard_companions_finish() {
+    [ "$GUARD_ACTIVE" = 1 ] || return 0
+    GUARD_ACTIVE=0
+    if [ "$GUARD_EXISTED" = 0 ]; then
+        if [ -f "$TARGET_TXT" ]; then
+            rm -f "$TARGET_TXT" 2>/dev/null
+            log_warn "companions: removed the target.txt ksud's hide apply created"
+        fi
+        return 0
+    fi
+    if cmp -s "$TARGET_KEEP" "$TARGET_TXT"; then
+        rm -f "$TARGET_KEEP" 2>/dev/null
+        return 0
+    fi
+    if cp -f "$TARGET_KEEP" "$TARGET_TXT" 2>/dev/null; then
+        log_warn "companions: restored target.txt, which ksud's hide apply rewrote"
+    else
+        log_warn "companions: could not restore target.txt"
+    fi
+    rm -f "$TARGET_KEEP" 2>/dev/null
+}
+
 apply_hide() {
-    requested=$1
+    argument=${1:-}
+    # `auto` is not a profile ksud knows: it means "let the device decide".
+    [ "$argument" = auto ] && argument=
     HIDE_APPLIED=0
     HIDE_SKIPPED=0
     HIDE_SUMMARY=
@@ -72,30 +145,32 @@ apply_hide() {
         return 0
     fi
 
-    # `auto` hands the decision back to ksud's device detection; anything else
-    # is stored, so the profile picked in the WebUI survives the next reboot.
-    if [ "$requested" = auto ]; then
-        "$KSUD" susfs config remove hide_profile >/dev/null 2>&1
-        requested=
-    elif [ -n "$requested" ]; then
-        "$KSUD" susfs config set hide_profile "$requested" >/dev/null 2>&1 ||
-            log_warn "hide: could not store profile '$requested'"
+    # The argument wins, then the configured profile, then ksud's own choice.
+    requested=$argument
+    if [ -z "$requested" ]; then
+        case "$CFG_PROFILE" in
+            auto|'') ;;
+            *) requested=$CFG_PROFILE ;;
+        esac
     fi
 
+    guard_companions_start
     if [ -n "$requested" ]; then
         output=$("$KSUD" hide apply "$requested" 2>&1)
         status=$?
         PROFILE_USED=$requested
-        PROFILE_SOURCE=argument
+        if [ -n "$argument" ]; then
+            PROFILE_SOURCE=argument
+        else
+            PROFILE_SOURCE=config
+        fi
     else
         output=$("$KSUD" hide apply 2>&1)
         status=$?
         PROFILE_USED=$(profile_from_status)
-        case "$CFG_PROFILE" in
-            auto) PROFILE_SOURCE=device ;;
-            *) PROFILE_SOURCE=config ;;
-        esac
+        PROFILE_SOURCE=$(profile_source_from_status)
     fi
+    guard_companions_finish
 
     HIDE_SUMMARY=$(printf '%s\n' "$output" | head -n 1)
     HIDE_APPLIED=$(printf '%s\n' "$output" | grep -o '[0-9][0-9]* applied' | head -n 1 | cut -d' ' -f1)
@@ -104,6 +179,8 @@ apply_hide() {
     [ -n "$HIDE_SKIPPED" ] || HIDE_SKIPPED=0
     [ -n "$PROFILE_USED" ] || PROFILE_USED=$CFG_PROFILE
     [ "$status" -eq 0 ] || log_warn "hide: apply exited $status ($HIDE_SUMMARY)"
+    HIDE_ENTRIES=$(entries_from_status)
+    [ -n "$HIDE_ENTRIES" ] || HIDE_ENTRIES=0
     log_raw "$output"
     log_info "hide: $HIDE_APPLIED applied, $HIDE_SKIPPED skipped"
 }
@@ -112,13 +189,14 @@ apply_hide() {
 # own state is registered explicitly and stays hidden at every level.
 apply_extra_paths() {
     EXTRA_PATHS=0
-    if [ -e "$DATA_DIR" ]; then
-        if "$KSUD" susfs add-sus-path "$DATA_DIR" >/dev/null 2>&1; then
-            EXTRA_PATHS=1
+    for path in "$DATA_DIR" /data/system/nyazygisk; do
+        [ -e "$path" ] || continue
+        if "$KSUD" susfs add-sus-path "$path" >/dev/null 2>&1; then
+            EXTRA_PATHS=$((EXTRA_PATHS + 1))
         else
-            log_warn "susfs: could not register $DATA_DIR"
+            log_warn "susfs: could not register $path"
         fi
-    fi
+    done
     log_info "susfs: $EXTRA_PATHS extra path(s) registered"
 }
 
@@ -143,7 +221,14 @@ apply_maps() {
     fi
     list=$DATA_DIR/maps.list
     : > "$list"
-    for library in /data/adb/ksu/zygisk/lib64/libzygisk.so /data/adb/ksu/zygisk/lib/libzygisk.so; do
+    # Two sets of the same libraries: the staged copies under /data/adb, and
+    # the runtime copies the zygote actually maps under /data/system. Hiding
+    # only the staged ones registers files nothing ever loads.
+    for library in \
+        /data/adb/ksu/zygisk/lib64/libzygisk.so \
+        /data/adb/ksu/zygisk/lib/libzygisk.so \
+        /data/system/nyazygisk/lib64/libzygisk.so \
+        /data/system/nyazygisk/lib/libzygisk.so; do
         [ -f "$library" ] && printf '%s\n' "$library" >> "$list"
     done
     if [ -d /data/adb/zygisksu ]; then
@@ -226,20 +311,27 @@ collect_live() {
     cfg_load
     detect_all
 
-    PROFILE_USED=$(profile_from_status)
-    if [ -z "$PROFILE_USED" ]; then
-        case "$CFG_PROFILE" in
-            auto) PROFILE_USED=$DEVICE_PROFILE ;;
-            *) PROFILE_USED=$CFG_PROFILE ;;
-        esac
-    fi
     case "$CFG_PROFILE" in
-        auto) PROFILE_SOURCE=device ;;
-        *) PROFILE_SOURCE=config ;;
+        auto|'')
+            PROFILE_USED=$(profile_from_status)
+            PROFILE_SOURCE=$(profile_source_from_status)
+            [ -n "$PROFILE_USED" ] || PROFILE_USED=$DEVICE_PROFILE
+            ;;
+        *)
+            PROFILE_USED=$CFG_PROFILE
+            PROFILE_SOURCE=config
+            ;;
     esac
 
-    HIDE_APPLIED=$(entries_from_status)
-    [ -n "$HIDE_APPLIED" ] || HIDE_APPLIED=0
+    # `hide status` counts the catalogue rows a profile selects, not the hides
+    # the kernel accepted, so it cannot stand in for a verified apply. The
+    # number shown here is the one the last apply actually registered.
+    HIDE_APPLIED=$(state_get applied)
+    HIDE_SKIPPED=$(state_get skipped)
+    HIDE_RECORDED=0
+    [ -n "$HIDE_APPLIED" ] && HIDE_RECORDED=1
+    HIDE_ENTRIES=$(entries_from_status)
+    [ -n "$HIDE_ENTRIES" ] || HIDE_ENTRIES=0
     HIDE_SUMMARY="not re-applied"
 
     props_audit

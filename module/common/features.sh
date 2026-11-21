@@ -34,7 +34,9 @@ enable_features() {
                 continue
                 ;;
         esac
-        if "$KSUD" feature set "$feature" 1 >/dev/null 2>&1; then
+        # The kernel only lets the owning module change a managed feature, and
+        # the WebUI runs this script from a plain root shell with no KSU_MODULE.
+        if KSU_MODULE="$NOVAHIDE_ID" "$KSUD" feature set "$feature" 1 >/dev/null 2>&1; then
             FEATURE_SUMMARY="${FEATURE_SUMMARY:+$FEATURE_SUMMARY }$feature=1"
         else
             FEATURE_SUMMARY="${FEATURE_SUMMARY:+$FEATURE_SUMMARY }$feature=failed"
@@ -48,7 +50,8 @@ enable_features() {
 audit_features() {
     FEATURE_SUMMARY=
     for feature in $FEATURES; do
-        value=$("$KSUD" feature get "$feature" 2>/dev/null | head -n 1)
+        # `feature get` prints a report: Feature, Description, then Value.
+        value=$("$KSUD" feature get "$feature" 2>/dev/null | sed -n 's/^Value: //p' | head -n 1)
         case "$value" in
             0|1) FEATURE_SUMMARY="${FEATURE_SUMMARY:+$FEATURE_SUMMARY }$feature=$value" ;;
             *) FEATURE_SUMMARY="${FEATURE_SUMMARY:+$FEATURE_SUMMARY }$feature=?" ;;

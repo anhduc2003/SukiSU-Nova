@@ -150,18 +150,26 @@ ts_sync_targets() {
 
 pif_row() {
     found=
+    disabled=
     for dir in /data/adb/modules/playintegrityfix /data/adb/modules/pif /data/adb/modules/pif-next; do
         if [ -d "$dir" ]; then
+            # ksud skips a module marked disable or remove, so its directory
+            # being there says nothing about whether a fingerprint is served.
+            if [ -f "$dir/disable" ] || [ -f "$dir/remove" ]; then
+                disabled=$dir
+                continue
+            fi
             found=$dir
             break
         fi
     done
-    if [ -z "$found" ] && [ -f /data/adb/pif.json ]; then
-        found=/data/adb/pif.json
-    fi
     if [ -n "$found" ]; then
         PIF_PRESENT=1
         add_companion PlayIntegrityFix present "supplies the fingerprint; its own settings are left alone"
+    elif [ -n "$disabled" ]; then
+        add_companion PlayIntegrityFix disabled "installed but switched off; no fingerprint is served"
+    elif [ -f /data/adb/pif.json ]; then
+        add_companion PlayIntegrityFix config-only "pif.json present but no active module serves it"
     else
         add_companion PlayIntegrityFix absent "needed for DEVICE integrity: it supplies the fingerprint"
     fi

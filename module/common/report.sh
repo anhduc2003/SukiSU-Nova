@@ -12,6 +12,8 @@ PROFILE_SOURCE=config
 HIDE_SUMMARY=
 HIDE_APPLIED=0
 HIDE_SKIPPED=0
+HIDE_ENTRIES=0
+HIDE_RECORDED=0
 MAPS_HIDDEN=0
 MOUNT_HIDING=
 BOOTCONFIG_STATE=skipped
@@ -40,9 +42,42 @@ entries_from_status() {
     "$KSUD" hide status 2>/dev/null | sed -n 's/^entries: //p' | head -n 1
 }
 
+# `hide status` prints `profile: <name> (automatic)` when ksud picked the level
+# itself, and `profile: <name>` when it came from its stored setting.
+profile_source_from_status() {
+    line=$("$KSUD" hide status 2>/dev/null | head -n 1)
+    case "$line" in
+        *"(automatic)"*) printf 'device' ;;
+        '') printf 'unknown' ;;
+        *) printf 'stored' ;;
+    esac
+}
+
+# What the last apply actually registered, so a status run can report a
+# verified number instead of the catalogue size.
+state_write() {
+    {
+        printf 'time=%s\n' "$(date '+%Y-%m-%d %H:%M:%S')"
+        printf 'profile=%s\n' "$PROFILE_USED"
+        printf 'applied=%s\n' "${HIDE_APPLIED:-0}"
+        printf 'skipped=%s\n' "${HIDE_SKIPPED:-0}"
+        printf 'verifiedboot=%s\n' "${PROPS_VERIFIEDBOOT:-}"
+    } > "$STATE_FILE.tmp" 2>/dev/null &&
+        mv -f "$STATE_FILE.tmp" "$STATE_FILE" 2>/dev/null
+    chmod 0644 "$STATE_FILE" 2>/dev/null
+}
+
+state_get() {
+    sed -n "s/^$1=//p" "$STATE_FILE" 2>/dev/null | head -n 1
+}
+
 verdict_basic() {
     if [ "$SUSFS_AVAILABLE" != 1 ]; then
         printf 'unavailable: this kernel has no SuSFS'
+        return 0
+    fi
+    if [ "$RUN_MODE" = status ] && [ "$HIDE_RECORDED" != 1 ]; then
+        printf 'not verified: run the action button'
         return 0
     fi
     if [ "${HIDE_APPLIED:-0}" = 0 ]; then
@@ -90,9 +125,14 @@ verdict_strong() {
 hide_line() {
     if [ "$RUN_MODE" = apply ]; then
         printf '%s applied, %s skipped' "$HIDE_APPLIED" "$HIDE_SKIPPED"
-    else
-        printf '%s entries for this profile, not re-applied now' "${HIDE_APPLIED:-0}"
+        return 0
     fi
+    if [ "$HIDE_RECORDED" != 1 ]; then
+        printf 'no apply recorded; run the action button'
+        return 0
+    fi
+    printf '%s applied at %s (%s in the catalog)' \
+        "$HIDE_APPLIED" "$(state_get time)" "$HIDE_ENTRIES"
 }
 
 maps_line() {
@@ -164,8 +204,14 @@ report_json() {
     printf '"kernel":{"version":"%s","uapi":"%s"},' \
         "$(json_escape "$KERNEL_VERSION")" "$(json_escape "$KERNEL_UAPI")"
     printf '"features":"%s",' "$(json_escape "${FEATURE_SUMMARY:-}")"
-    printf '"hide":{"applied":%s,"skipped":%s,"summary":"%s"},' \
-        "${HIDE_APPLIED:-0}" "${HIDE_SKIPPED:-0}" "$(json_escape "$HIDE_SUMMARY")"
+    if [ "$HIDE_RECORDED" = 1 ]; then
+        recorded=true
+    else
+        recorded=false
+    fi
+    printf '"hide":{"applied":%s,"skipped":%s,"entries":%s,"recorded":%s,"at":"%s","summary":"%s"},' \
+        "${HIDE_APPLIED:-0}" "${HIDE_SKIPPED:-0}" "${HIDE_ENTRIES:-0}" "$recorded" \
+        "$(json_escape "$(state_get time)")" "$(json_escape "$HIDE_SUMMARY")"
     printf '"props":{"fixed":%s,"ok":%s,"failed":%s,"verifiedBoot":"%s"},' \
         "${PROPS_FIXED:-0}" "${PROPS_OK:-0}" "${PROPS_FAILED:-0}" \
         "$(json_escape "${PROPS_VERIFIEDBOOT:-}")"

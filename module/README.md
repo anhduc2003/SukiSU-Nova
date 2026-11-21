@@ -57,10 +57,10 @@ or re-add a path with a different meaning.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `PROFILE` | `auto` | `auto`, `off`, `light`, `balanced`, `aggressive`. `auto` follows the device pack. A profile picked in the WebUI is stored here. |
+| `PROFILE` | `auto` | `auto`, `off`, `light`, `balanced`, `aggressive`. `auto` follows the device pack. A profile picked from the action or the WebUI is written here, and to ksud's own store, so boot and the manager agree. |
 | `MANAGE_FEATURES` | `1` | Own and enable the three kernel hiding features. |
 | `HARDEN_PROPS` | `1` | Force the bootloader/verified-boot properties. |
-| `CONFIGURE_COMPANIONS` | `1` | Write the settings companion modules expose. |
+| `CONFIGURE_COMPANIONS` | `1` | Write the settings companion modules expose. With `0`, a `target.txt` that `ksud hide apply` rewrites on its own is put back. |
 | `HIDE_MAPS` | `1` | Hide Zygisk payloads from `/proc/<pid>/maps`. |
 | `SPOOF_BOOTCONFIG` | `1` | Serve a sanitised `/proc/bootconfig`. |
 | `STATUS_IN_DESCRIPTION` | `1` | Put the last run's summary into `module.prop`. |
@@ -70,6 +70,11 @@ modules have their own switches, so `PROFILE=off` still sanitises the
 bootloader properties — that part is what most detectors read first.
 
 ## The verdict, honestly
+
+The `applied` count is what the last apply registered, kept in
+`/data/adb/novahide/last-apply`. `ksud hide status` reports the catalogue size
+instead, which says nothing about whether the kernel accepted the hides, so a
+status run without a recorded apply says `not verified` rather than guessing.
 
 The report prints three readiness lines:
 
@@ -113,6 +118,8 @@ still fail an app's own extra checks.
   kernel that has it; nothing else in this module can hide a path.
 - `hide 0 applied` → the profile is `off`, or no catalog path exists on this
   device. Try `action.sh apply balanced`.
+- `hide no apply recorded` → nothing has run since this boot. Tap the action
+  button; the status view does not claim readiness from the catalogue alone.
 - A banking app still fails → check the app's own list: it may look for the
   manager package, an unlocked bootloader in `/proc/bootconfig`, or a keybox it
   does not accept. `action.sh status` names what is missing, not what to install.

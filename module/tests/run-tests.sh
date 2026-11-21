@@ -145,6 +145,10 @@ case "$cmd" in
                     printf 'hide: no SuSFS on this kernel\n'
                     exit 1
                 fi
+                if [ -n "${NOVAHIDE_TEST_KSUD_INTEGRATES:-}" ] && [ -f /data/adb/tricky_store/target.txt ]; then
+                    grep -qx 'com.google.android.gms' /data/adb/tricky_store/target.txt ||
+                        printf 'com.google.android.gms\ncom.android.vending\n' >> /data/adb/tricky_store/target.txt
+                fi
                 printf 'hide: %s — 12 applied, 1 skipped\n' "${1:-aggressive}"
                 printf '  skipped /data/adb/zygisksu: not present\n'
                 printf 'TrickyStore: target.txt already lists the attestation packages\n'
@@ -170,7 +174,11 @@ case "$cmd" in
         case "$sub" in
             check) printf 'supported\n' ;;
             set) [ -n "${NOVAHIDE_TEST_FAIL_FEATURE:-}" ] && exit 1 ;;
-            get) printf '1\n' ;;
+            get)
+                printf 'Feature: %s (4)\n' "$2"
+                printf 'Description: test feature\n'
+                printf 'Value: 1\n'
+                ;;
         esac
         ;;
     zygisk) printf '{"state":"running","id":"builtin","name":"NyaZygisk","version":"1.0"}\n' ;;
@@ -205,9 +213,10 @@ chmod 0755 "$STUB_BIN/getprop" /data/adb/ksud
 # built-in Zygisk.
 mkdir -p /data/adb/tricky_store /data/adb/modules/playintegrityfix /data/adb/zygisksu
 printf 'com.example.bank\ncom.example.game!\n' > /data/adb/tricky_store/target.txt
-mkdir -p /data/adb/ksu/zygisk/lib64
+mkdir -p /data/adb/ksu/zygisk/lib64 /data/system/nyazygisk/lib64
 : > /data/adb/ksu/.builtin_zygisk
 : > /data/adb/ksu/zygisk/lib64/libzygisk.so
+: > /data/system/nyazygisk/lib64/libzygisk.so
 
 # A captured bootconfig with the values an unlocked device reports.
 cat > /data/adb/test-bootconfig <<'EOF'
@@ -258,7 +267,8 @@ run_script service.sh service
 assert_eq "service exits 0" "$?" "0"
 assert_contains "the module state is hidden explicitly" "$CALLS" "susfs add-sus-path /data/adb/novahide"
 assert_contains "SUS mounts are hidden per process" "$CALLS" "susfs hide-sus-mnts-for-non-su-procs 1"
-assert_contains "the zygisk payload map is hidden" "$CALLS" "susfs add-sus-map /data/adb/ksu/zygisk/lib64/libzygisk.so"
+assert_contains "the staged payload map is hidden" "$CALLS" "susfs add-sus-map /data/adb/ksu/zygisk/lib64/libzygisk.so"
+assert_contains "the runtime payload map is hidden" "$CALLS" "susfs add-sus-map /data/system/nyazygisk/lib64/libzygisk.so"
 assert_contains "TrickyStore gets the attestation targets" /data/adb/tricky_store/target.txt "com.google.android.gms"
 assert_contains "TrickyStore gets the Play Store target" /data/adb/tricky_store/target.txt "com.android.vending"
 assert_contains "the user's own target survives" /data/adb/tricky_store/target.txt "com.example.bank"
@@ -300,6 +310,8 @@ else
 fi
 assert_contains "the JSON reports the profile" "$OUT/action-json.log" '"profile":"aggressive"'
 assert_contains "the JSON reports SuSFS" "$OUT/action-json.log" '"available":true'
+assert_contains "the JSON carries the recorded apply" "$OUT/action-json.log" '"recorded":true'
+assert_contains "the JSON carries the catalog size" "$OUT/action-json.log" '"entries":12'
 run_script action.sh action-status status
 assert_eq "action status exits 0" "$?" "0"
 assert_contains "status prints the verdict" "$OUT/action-status.log" "STRONG"
@@ -310,10 +322,40 @@ echo "== profile"
 : > "$CALLS"
 run_script action.sh action-profile apply aggressive
 assert_contains "an explicit profile is stored" "$CALLS" "susfs config set hide_profile aggressive"
+assert_contains "the choice is written to the config" /data/adb/novahide/config.conf "PROFILE=aggressive"
 : > "$CALLS"
 run_script action.sh action-auto apply auto
 assert_contains "auto clears the stored profile" "$CALLS" "susfs config remove hide_profile"
 assert_contains "auto falls back to the device profile" "$OUT/action-auto.log" "aggressive (device)"
+assert_contains "auto is written to the config" /data/adb/novahide/config.conf "PROFILE=auto"
+: > "$CALLS"
+sed -i 's/^PROFILE=auto$/PROFILE=light/' /data/adb/novahide/config.conf
+run_script service.sh service-light
+assert_contains "a configured profile is applied at boot" "$CALLS" "hide apply light"
+sed -i 's/^PROFILE=light$/PROFILE=auto/' /data/adb/novahide/config.conf
+
+echo "== companions opt-out"
+printf 'com.example.bank\n' > /data/adb/tricky_store/target.txt
+cp -f /data/adb/novahide/config.conf /data/adb/novahide/config.conf.keep
+sed -i 's/^CONFIGURE_COMPANIONS=1$/CONFIGURE_COMPANIONS=0/' /data/adb/novahide/config.conf
+NOVAHIDE_TEST_KSUD_INTEGRATES=1 run_script action.sh action-optout apply balanced
+assert_eq "the opt-out run exits 0" "$?" "0"
+assert_not_contains "the opt-out keeps target.txt untouched" /data/adb/tricky_store/target.txt "com.google.android.gms"
+mv -f /data/adb/novahide/config.conf.keep /data/adb/novahide/config.conf
+
+echo "== disabled fingerprint"
+: > /data/adb/modules/playintegrityfix/disable
+run_script action.sh action-disabled status
+assert_contains "a disabled provider is reported as off" "$OUT/action-disabled.log" "installed but switched off"
+assert_not_contains "a disabled provider does not make DEVICE ready" "$OUT/action-disabled.log" "DEVICE  ready"
+rm -f /data/adb/modules/playintegrityfix/disable
+
+echo "== unverified status"
+mv -f /data/adb/novahide/last-apply /data/adb/novahide/last-apply.keep
+run_script action.sh action-unverified status
+assert_contains "status without an apply says so" "$OUT/action-unverified.log" "no apply recorded"
+assert_contains "the verdict does not claim readiness" "$OUT/action-unverified.log" "not verified"
+mv -f /data/adb/novahide/last-apply.keep /data/adb/novahide/last-apply
 
 echo "== failure paths"
 : > "$CALLS"
