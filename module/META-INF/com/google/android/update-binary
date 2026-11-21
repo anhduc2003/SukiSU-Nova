@@ -1,0 +1,18 @@
+#!/sbin/sh
+# NovaHide, flashed outside the manager.
+#
+# The module is installed by SukiSU Nova's own installer, so this shim only
+# hands the zip back to ksud. A recovery has no ksud running, and saying that
+# is better than a flash that appears to succeed and does nothing.
+
+ZIPFILE=$3
+
+if [ -x /data/adb/ksud ]; then
+    /data/adb/ksud module install "$ZIPFILE"
+    exit $?
+fi
+
+echo "NovaHide installs from the SukiSU Nova manager:"
+echo "  Modules -> Install from storage -> pick the zip."
+echo "A recovery has no ksud running, so the module cannot be installed here."
+exit 1

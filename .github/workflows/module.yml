@@ -1,0 +1,130 @@
+name: Build NovaHide module
+
+# Builds the flashable module zip from `module/` and publishes it as the
+# `novahide` artifact. Like the other workflows here this uses plain scripts
+# and ${CI_ARTIFACT_ROOT} instead of a marketplace action, so it runs on the
+# self-hosted runner and, with the direct-clone fallback, on a GitHub-hosted
+# one.
+#
+# The behavioural harness (module/tests/run-tests.sh) is not run here: it needs
+# root and a mount namespace, which the runner containers do not grant. It runs
+# on a workstation with `sudo unshare -m sh module/tests/run-tests.sh`.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'main'
+      - 'dev'
+    paths:
+      - 'module/**'
+      - 'scripts/build-module.sh'
+      - '.github/workflows/module.yml'
+  pull_request:
+    branches:
+      - 'main'
+      - 'dev'
+    paths:
+      - 'module/**'
+      - 'scripts/build-module.sh'
+      - '.github/workflows/module.yml'
+
+jobs:
+  module:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eux
+          remote="https://git.zako.shirkneko.top:20004"
+          mirror="/ci/repo-cache/${GITHUB_REPOSITORY}.git"
+          # The self-hosted runner keeps one bare mirror per repository on a
+          # shared /ci volume. A GitHub-hosted runner, which is what a fork's
+          # pull request gets, has no such volume: fall back to a direct clone
+          # instead of failing before any code is read.
+          if mkdir -p "$(dirname "$mirror")" 2>/dev/null; then
+            if [ ! -d "$mirror" ]; then
+              set +x
+              git -c "http.${remote}/.extraHeader=Authorization: token ${TOKEN}" \
+                clone -q --mirror "${remote}/${GITHUB_REPOSITORY}.git" "$mirror"
+              set -x
+            elif command -v flock >/dev/null 2>&1; then
+              (
+                flock 9
+                git --git-dir="$mirror" fetch -q --prune origin \
+                  "+refs/heads/*:refs/heads/*" "+refs/tags/*:refs/tags/*"
+              ) 9>"${mirror}.lock"
+            else
+              git --git-dir="$mirror" fetch -q --prune origin \
+                "+refs/heads/*:refs/heads/*" "+refs/tags/*:refs/tags/*"
+            fi
+            git clone -q --shared --no-checkout "$mirror" .
+            git checkout -q "${GITHUB_SHA}"
+          else
+            # The ref, not ${GITHUB_SHA}: on a pull_request event the SHA is the
+            # merge commit, which a plain clone does not fetch. The header is
+            # Basic, the scheme git's smart HTTP endpoint accepts; helpers are
+            # disabled so a bad token fails here instead of succeeding quietly.
+            # Tracing goes off before the token is encoded: secret masking
+            # redacts the token, not its base64 form.
+            git init -q .
+            git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+            set +x
+            auth=$(printf 'x-access-token:%s' "${TOKEN}" | base64 | tr -d '\n')
+            GIT_TERMINAL_PROMPT=0 git -c credential.helper= \
+              -c "http.https://github.com/.extraHeader=Authorization: Basic ${auth}" \
+              fetch -q --depth 1 origin "${GITHUB_REF}"
+            set -x
+            git checkout -q FETCH_HEAD
+            # The ref moves: a push that lands between the event and this fetch
+            # would otherwise build a commit other than the one being reported.
+            if [ "$(git rev-parse HEAD)" != "${GITHUB_SHA}" ]; then
+              echo "checked out $(git rev-parse HEAD), expected ${GITHUB_SHA}" >&2
+              exit 1
+            fi
+          fi
+
+      - name: ShellCheck
+        run: |
+          set -eux
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            echo "shellcheck is not preinstalled, installing it"
+            if command -v sudo >/dev/null 2>&1; then
+              sudo apt-get update -qq
+              sudo apt-get install -y -qq shellcheck
+            else
+              apt-get update -qq
+              apt-get install -y -qq shellcheck
+            fi
+          fi
+          mapfile -t files < <(git ls-files '*.sh' | grep -E '^(module/|scripts/build-module\.sh)' || true)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "no module scripts to check"
+            exit 0
+          fi
+          printf 'checking %d files\n' "${#files[@]}"
+          shellcheck -x "${files[@]}"
+
+      - name: Build
+        run: bash scripts/build-module.sh
+
+      - name: Publish artifact
+        run: |
+          set -eux
+          root="${CI_ARTIFACT_ROOT:-/ci/runs/${GITHUB_RUN_ID}}"
+          if mkdir -p "$root" 2>/dev/null; then
+            . .github/scripts/ci/common.sh
+            ci_artifact_put novahide out/*.zip
+            ls -la "$(ci_artifact_path novahide)"
+          elif [ "${RUNNER_ENVIRONMENT:-}" = github-hosted ]; then
+            # A GitHub-hosted runner has no shared artifact volume at all; the
+            # zip is built and its path and hash are in the build log above.
+            echo "github-hosted runner: no artifact volume, leaving the zip in out/"
+            ls -la out/
+          else
+            # A self-hosted runner is supposed to have one: a missing mount is
+            # a broken runner, not a reason to report success with no artifact.
+            echo "no writable artifact root at $root" >&2
+            exit 1
+          fi

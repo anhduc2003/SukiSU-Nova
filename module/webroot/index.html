@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>NovaHide</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main id="app">
+  <header class="head">
+    <div>
+      <h1>NovaHide <span class="dot" id="dot"></span></h1>
+      <p class="sub" id="device">reading device state…</p>
+    </div>
+    <span class="chip" id="profile">—</span>
+  </header>
+
+  <div id="notice" class="notice" hidden></div>
+
+  <section class="verdicts" aria-label="Play Integrity readiness">
+    <div class="verdict" id="v-basic"><span class="label">BASIC</span><span class="value">—</span><span class="sub" hidden></span></div>
+    <div class="verdict" id="v-device"><span class="label">DEVICE</span><span class="value">—</span><span class="sub" hidden></span></div>
+    <div class="verdict" id="v-strong"><span class="label">STRONG</span><span class="value">—</span><span class="sub" hidden></span></div>
+  </section>
+
+  <section class="stats">
+    <div class="stat"><span class="k">hidden</span><span class="v" id="s-hidden">—</span></div>
+    <div class="stat"><span class="k">props</span><span class="v" id="s-props">—</span></div>
+    <div class="stat"><span class="k">maps</span><span class="v" id="s-maps">—</span></div>
+    <div class="stat"><span class="k">bootconfig</span><span class="v" id="s-bootconfig">—</span></div>
+  </section>
+
+  <section class="controls">
+    <div class="row">
+      <label class="select">
+        <span>profile</span>
+        <select id="profile-select">
+          <option value="auto">auto (device)</option>
+          <option value="light">light</option>
+          <option value="balanced">balanced</option>
+          <option value="aggressive">aggressive</option>
+          <option value="off">off</option>
+        </select>
+      </label>
+      <button id="apply" class="primary" type="button">Apply</button>
+      <button id="refresh" type="button">Re-check</button>
+    </div>
+    <div class="row secondary">
+      <button id="log" type="button">Log</button>
+      <button id="purge" type="button">Purge traces</button>
+      <button id="reset" type="button">Reset config</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Kernel and SuSFS</h2>
+    <dl id="kernel"></dl>
+  </section>
+
+  <section class="panel">
+    <h2>Hiding modules</h2>
+    <ul id="companions" class="companions"></ul>
+  </section>
+
+  <section class="panel">
+    <h2>Module conflicts</h2>
+    <ul id="conflicts" class="companions"></ul>
+  </section>
+
+  <section class="panel">
+    <h2>Keybox</h2>
+    <div class="row">
+      <button id="keybox" type="button">Load keybox.xml…</button>
+    </div>
+    <input type="file" id="keybox-file" accept=".xml,text/xml,application/xml" hidden>
+    <p class="hint" id="keybox-hint">A keybox is a file of your own: NovaHide checks its shape and installs it for TrickyStore. Whether the key is accepted is decided server-side.</p>
+  </section>
+
+  <section class="panel">
+    <h2>HMA-OSS auto-setup</h2>
+    <div class="row">
+      <button id="hma-on" type="button">Enable and set up</button>
+      <button id="hma-off" type="button">Stop</button>
+    </div>
+    <p class="hint" id="hma-hint">On every apply, NovaHide writes an HMA template that hides the manager and hooking apps, and applies it to the installed banks and the packages in HMA_TARGET_APPS. HMA's daemon reloads the config live.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Output</h2>
+    <pre id="output" class="output" hidden></pre>
+    <p class="hint" id="hint">Readiness is a local check. Google decides the verdict server-side.</p>
+  </section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
