@@ -34,8 +34,13 @@ hma_hidden_packages() {
 }
 
 hma_targets() {
+    installed=$(list_packages)
     printf '%s %s\n' "$(banking_all)" "${CFG_HMA_TARGET_APPS:-}" |
-        tr ' ' '\n' | sed '/^$/d' | sort -u
+        tr ' ' '\n' | sed '/^$/d' | sort -u |
+        while IFS= read -r package; do
+            [ -n "$installed" ] || continue
+            printf '%s\n' "$installed" | grep -qix -- "$package" && printf '%s\n' "$package"
+        done
 }
 
 # A JSON string array from a newline list; the inputs are already sanitized
@@ -111,10 +116,9 @@ hma_merge() {
             ;;
     esac
 
-    # Only apps HMA does not know yet get a new scope entry: one the user
-    # configured themselves is kept exactly as they set it. scope is the
-    # last key of the config, so a filled scope appends before its closing
-    # brace pair, and an empty one takes the entry whole.
+    # Only apps that are actually installed, so HMA never holds rules for
+    # banks the user does not have. Each unscoped one takes a minimal entry;
+    # one the user configured themselves is kept exactly as they set it.
     for package in $(hma_targets); do
         case "$config" in
             *"\"$package\":{"*) continue ;;
@@ -130,10 +134,18 @@ hma_merge() {
                     sed "s/}}\$/,\"$package\":$entry}}/")
                 ;;
         esac
-        HMA_CONFIGURED=$((HMA_CONFIGURED + 1))
     done
 
-    printf '%s' "$config"
+    # The count that matters is how many of the installed targets the merged
+    # config now covers, not how many this pass happened to add.
+    HMA_CONFIGURED=0
+    for package in $(hma_targets); do
+        case "$config" in
+            *"\"$package\":{"*) HMA_CONFIGURED=$((HMA_CONFIGURED + 1)) ;;
+        esac
+    done
+
+    printf '%s\n' "$config"
 }
 
 hma_configure() {
@@ -162,13 +174,15 @@ hma_configure() {
         return 0
     fi
 
-    if [ "$(wc -l < "$file" | tr -d ' ')" != 1 ]; then
+    if [ "$(wc -l < "$file" | tr -d ' ')" -gt 1 ]; then
         HMA_NOTE="its config is not a single compact line; open HMA once and retry"
         log_warn "hma: $file is not the expected compact JSON, leaving it alone"
         return 0
     fi
 
-    cp -f "$file" "$file.novahide-bak" 2>/dev/null
+    # The backup is the user's pre-NovaHide config: taken once, never
+    # replaced, so a manual recovery can always go back to it.
+    [ -f "$file.novahide-bak" ] || cp -f "$file" "$file.novahide-bak" 2>/dev/null
     if ! hma_merge "$file" > "$file.tmp"; then
         rm -f "$file.tmp"
         log_warn "hma: could not merge safely: $HMA_NOTE"

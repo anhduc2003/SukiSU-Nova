@@ -558,6 +558,19 @@ else
     fail "the second bank has no scope entry"
 fi
 assert_contains "the status reports the setup" "$OUT/action-hma1.log" "the NovaHide template is applied"
+run_script action.sh action-hma1b apply aggressive
+if grep -q '"NovaHide":{"isWhitelist":false,"appList":\["com.sukisu.nova"\]}' \
+    /data/misc/hide_my_applist_abcdefghijklmnop/config.json; then
+    pass "the template survives NovaHide's own rewrite"
+else
+    fail "the second pass broke the template"
+fi
+assert_not_contains "uninstalled banks get no rule" \
+    /data/misc/hide_my_applist_abcdefghijklmnop/config.json "techcombank"
+assert_not_contains "the backup predates NovaHide" \
+    /data/misc/hide_my_applist_abcdefghijklmnop/config.json.novahide-bak "NovaHide"
+assert_contains "the steady state counts the installed targets" \
+    "$OUT/action-hma1b.log" "2 target app(s)"
 printf '{"configVersion":5,"templates":{"Mine":{"isWhitelist":true,"appList":["com.a"]}},"scope":{"com.vcb":{"useWhitelist":true,"applyTemplates":["Mine"]}}}\n' > /data/misc/hide_my_applist_abcdefghijklmnop/config.json
 run_script action.sh action-hma2 apply aggressive
 if grep -q '"Mine":{"isWhitelist":true,"appList":\["com.a"\]}' \

@@ -40,7 +40,10 @@ case "${1:-apply}" in
         keybox_install "${2:-}" || keybox_status=1
         ;;
     hma)
-        cfg_load
+        # Probe the device first so the report reads real values, then act;
+        # collect_live's own hma_audit state is replaced by the setup below.
+        detect_all
+        collect_live
         case "${2:-setup}" in
             on)
                 cfg_set AUTO_CONFIGURE_HMA 1
@@ -52,7 +55,6 @@ case "${1:-apply}" in
                 cfg_set AUTO_CONFIGURE_HMA 0
                 # shellcheck disable=SC2034
                 CFG_AUTO_CONFIGURE_HMA=0
-                hma_audit
                 printf 'hma: auto-setup off; the HMA config is left as it is\n'
                 ;;
             *)

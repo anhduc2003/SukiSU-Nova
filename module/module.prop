@@ -1,8 +1,8 @@
 id=novahide
 name=NovaHide
-version=v1.4.0
-versionCode=10400
+version=v1.4.1
+versionCode=10401
 author=anhduc2003
-description=NovaHide v1.4.0 - not applied yet; tap the module action button to run the first pass
+description=NovaHide v1.4.1 - not applied yet; tap the module action button to run the first pass
 updateJson=
 managedFeatures=selinux_hide,avc_spoof,mount_hide,kernel_umount
