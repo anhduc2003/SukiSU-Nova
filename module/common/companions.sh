@@ -61,9 +61,9 @@ tricky_store_row() {
     if [ "$mode" = write ]; then
         added=$(ts_sync_targets)
         if [ "${added:-0}" -gt 0 ]; then
-            note="added $added attestation target(s), $keybox"
+            note="added $added attestation target(s) (apps included), $keybox"
         else
-            note="attestation targets ok, $keybox"
+            note="attestation targets ok (apps included), $keybox"
         fi
     else
         missing=$(ts_targets_missing)
@@ -98,7 +98,13 @@ ts_targets_missing() {
     printf '%s' "$missing"
 }
 
-# Make sure the two Play Integrity packages are in TrickyStore's target.txt.
+# Make sure the Play Integrity packages and every installed app that checks
+# attestation are in TrickyStore's target.txt.
+#
+# Without a line here TrickyStore leaves an app alone, and the app then reads
+# the TEE's real RootOfTrust - which says unlocked on exactly the devices this
+# module serves. The list is the Play packages, the installed banks and
+# detector apps, and the user's own extras.
 #
 # Only lines that are missing are appended, and a package that already carries
 # a `!`/`?` suffix counts as present: appending a second bare line would
@@ -118,7 +124,21 @@ ts_sync_targets() {
         cat "$target" >> "$tmp"
     fi
     added=0
-    for package in com.google.android.gms com.android.vending; do
+    installed=$(list_packages)
+    for package in com.google.android.gms com.android.vending \
+        $BANKING_APPS $DETECTOR_APPS ${CFG_EXTRA_BANKING_APPS:-} ${CFG_HMA_TARGET_APPS:-}; do
+        [ -n "$package" ] || continue
+        case "$package" in
+            com.google.android.gms|com.android.vending) ;;
+            *)
+                # Everything else is synced only when it is installed: a rule
+                # for an app the device does not have is noise a detector can
+                # read in the file.
+                if [ -n "$installed" ]; then
+                    printf '%s\n' "$installed" | grep -qix -- "$package" || continue
+                fi
+                ;;
+        esac
         if awk -v want="$package" '
             BEGIN { found = 0 }
             {

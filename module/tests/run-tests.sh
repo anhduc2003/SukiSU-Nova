@@ -122,7 +122,7 @@ EOF
 cat > "$STUB_BIN/pm" <<'EOF'
 #!/bin/sh
 [ "$1" = list ] || exit 0
-printf 'package:com.vcb\npackage:com.mbmobile\npackage:com.example.extra\npackage:com.example.extra2\npackage:com.sukisu.nova\npackage:com.android.settings\n'
+printf 'package:com.vcb\npackage:com.mbmobile\npackage:com.eltavine.duckdetector\npackage:com.example.extra\npackage:com.example.extra2\npackage:com.sukisu.nova\npackage:com.android.settings\n'
 EOF
 
 cat > "$STUB_BIN/settings" <<'EOF'
@@ -301,6 +301,9 @@ assert_contains "the staged payload map is hidden" "$CALLS" "susfs add-sus-map /
 assert_contains "the runtime payload map is hidden" "$CALLS" "susfs add-sus-map /data/system/nyazygisk/lib64/libzygisk.so"
 assert_contains "TrickyStore gets the attestation targets" /data/adb/tricky_store/target.txt "com.google.android.gms"
 assert_contains "TrickyStore gets the Play Store target" /data/adb/tricky_store/target.txt "com.android.vending"
+assert_contains "the installed bank is an attestation target" /data/adb/tricky_store/target.txt "com.vcb"
+assert_contains "the installed detector is an attestation target" /data/adb/tricky_store/target.txt "com.eltavine.duckdetector"
+assert_not_contains "an uninstalled bank gets no target line" /data/adb/tricky_store/target.txt "vn.com.techcombank.bb.app"
 assert_contains "the user's own target survives" /data/adb/tricky_store/target.txt "com.example.bank"
 assert_contains "a per-target mode suffix survives" /data/adb/tricky_store/target.txt "com.example.game!"
 assert_ok test -f /data/adb/novahide/status.txt

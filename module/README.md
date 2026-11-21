@@ -219,10 +219,19 @@ covers all three from one table, so they cannot contradict each other:
 
 The report's `bootloader` section reads every vector back after the pass and
 says either "every property reads a locked device" or exactly which one still
-reads unlocked — a green verdict is a measurement, not a promise. The
-attestation side (the verified-boot field inside a hardware attestation) is
-not a property: it needs TrickyStore and a keybox, which is what the STRONG
-verdict tracks.
+reads unlocked — a green verdict is a measurement, not a promise.
+
+**What this cannot reach**: an attestation-reading detector (Duck Detector,
+bank apps doing Key Attestation) reads `RootOfTrust` from the device's TEE —
+hardware state, and it ranks above every software signal; Duck Detector says
+so in its own evidence line. No property or bootconfig change can move it.
+The one path is TrickyStore with a keybox serving a forged record, and that
+needs three things, all covered here: TrickyStore installed, a keybox
+uploaded through the WebUI, and the checking app inside TrickyStore's
+`target.txt` — NovaHide syncs that file itself: the Play packages, every
+installed bank, the installed detector apps (Duck Detector, Ruru, Momo), and
+the user's own extras. Without a keybox the TEE keeps telling the truth and
+no module can change that.
 
 ## Vietnamese banking apps
 

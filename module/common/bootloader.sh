@@ -54,7 +54,8 @@ bootloader_readback() {
         "flash.locked:$BOOT_LOCKED:1" \
         "vbmeta.device_state:$BOOT_DEVICE:locked" \
         "veritymode:$BOOT_VERITY:enforcing" \
-        "warranty_bit:$BOOT_WARRANTY:0"; do
+        "warranty_bit:$BOOT_WARRANTY:0" \
+        "lockstate:$BOOT_LOCKSTATE:locked"; do
         name=${pair%%:*}
         rest=${pair#*:}
         actual=${rest%:*}

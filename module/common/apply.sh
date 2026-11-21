@@ -323,12 +323,12 @@ spoof_uname() {
     fi
 }
 
-# Serve a sanitised /proc/bootconfig through SuSFS.
+# Serve a sanitised /proc/bootconfig (or /proc/cmdline) through SuSFS.
 #
-# Only the value of a key that already exists is replaced, and the result is
-# rejected unless every line still parses as `key = value` and the line count
-# is unchanged. A detector reading bootconfig then sees the stock values while
-# everything else stays exactly as the bootloader wrote it.
+# Existing keys are rewritten to the stock values and keys the file lacks are
+# appended, since a locked device reports all of them. The result is rejected
+# unless every line still parses as `key = value`; the line count changes by
+# design when a key had to be added.
 spoof_bootconfig() {
     BOOTCONFIG_STATE=skipped
     # BOOTCONFIG_SRC lets the test harness feed a captured file; a boot leaves
