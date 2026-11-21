@@ -26,8 +26,10 @@ It bundles nobody else's binaries. It drives what is already on the device.
 
 ## Requirements
 
-- **SukiSU Nova** with the built-in hide packs: `ksud hide status` must work.
-  The installer stops with a clear message if it does not.
+- **SukiSU Nova**, any recent build. With the built-in hide packs
+  (`ksud hide status` works) NovaHide drives them; on an older ksud the
+  installer warns and the module registers its own copy of the catalogue
+  instead (see "When the ksud is older than the fork").
 - **A kernel with SuSFS** for the path, mount and map hiding. Without it the
   module still fixes properties and kernel features, and says so.
 - **OnePlus Ace 5** (`giulia` / `giuliac`, models `PKG110` / `CPH2645`) gets its
@@ -203,6 +205,24 @@ unexpected file with the reason in the report, and leaves a
 removes that backup). Switching the feature off stops NovaHide from
 touching HMA; what it already wrote stays, since HMA's own manager can
 edit or remove it.
+
+## Bootloader unlock
+
+A detector learns the bootloader is unlocked from three places, and NovaHide
+covers all three from one table, so they cannot contradict each other:
+
+| Vector | What NovaHide serves |
+|---|---|
+| Properties | `ro.boot.verifiedbootstate=green`, `ro.boot.flash.locked=1`, `ro.boot.vbmeta.device_state=locked`, `ro.boot.veritymode=enforcing`, both warranty bits `0`, `ro.secureboot.lockstate=locked`, `ro.boot.vbmeta.invalidate_on_error=yes`, `avb_version=1.2`, `hash_alg=sha256`, `sys.oem_unlock_allowed=0`, and the vendor aliases |
+| `/proc/bootconfig` (GKI) | Every `androidboot.*` key rewritten, and the ones a locked device reports but the file lacks are added |
+| `/proc/cmdline` (older kernels) | The same keys as space-separated tokens, when the kernel has no bootconfig |
+
+The report's `bootloader` section reads every vector back after the pass and
+says either "every property reads a locked device" or exactly which one still
+reads unlocked — a green verdict is a measurement, not a promise. The
+attestation side (the verified-boot field inside a hardware attestation) is
+not a property: it needs TrickyStore and a keybox, which is what the STRONG
+verdict tracks.
 
 ## Vietnamese banking apps
 

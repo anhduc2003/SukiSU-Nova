@@ -274,6 +274,8 @@ report_text() {
     printf '%-12s %s\n' "zygisk" "$ZYGISK_STATE"
     printf '%s\n' "hma-oss"
     hma_text
+    printf '%s\n' "bootloader"
+    bootloader_text
     printf '%s\n' "companions"
     companions_text
     printf '%s\n' "module conflicts"
@@ -330,6 +332,7 @@ report_json() {
     printf '"conflicts":%s,' "$(conflicts_json)"
     printf '"banking":%s,' "$(banking_json)"
     printf '"hma":%s,' "$(hma_json)"
+    printf '"bootloader":%s,' "$(bootloader_json)"
     printf '"verdict":{"basic":"%s","device":"%s","strong":"%s"},' \
         "$(json_escape "$(verdict_basic)")" "$(json_escape "$(verdict_device)")" \
         "$(json_escape "$(verdict_strong)")"

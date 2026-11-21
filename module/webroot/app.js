@@ -177,6 +177,7 @@
             ['uname', data.uname || '—'],
             ['banking', bankingApps(data.banking)],
             ['bank risk', bankRisk(data.banking)],
+            ['bootloader', bootloaderText(data.bootloader)],
             ['log', data.log || '—']
         ].forEach(function (pair) {
             var dt = document.createElement('dt');
@@ -262,6 +263,16 @@
             return 'not checked: no banking app installed';
         }
         return banking.risks || "nothing beyond the app's own checks";
+    }
+
+    function bootloaderText(bootloader) {
+        if (!bootloader) {
+            return '—';
+        }
+        if (bootloader.verdict && bootloader.verdict !== 'locked') {
+            return 'still unlocked: ' + bootloader.verdict;
+        }
+        return 'locked (' + (bootloader.verifiedboot || '?') + ', flash.locked ' + (bootloader.locked || '?') + ')';
     }
 
     function stateClass(state) {

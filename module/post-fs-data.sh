@@ -23,7 +23,13 @@ case "$CFG_PROFILE" in
     *) apply_susfs_log ;;
 esac
 
-apply_hide ""
+if ksud_hide_supported; then
+    apply_hide ""
+else
+    # Older ksud: the module brings its own copy of the catalogue, and it has
+    # to land before zygote for the same reason the built-in pack does.
+    apply_own_pack ""
+fi
 
 log_info "post-fs-data: done"
 exit 0

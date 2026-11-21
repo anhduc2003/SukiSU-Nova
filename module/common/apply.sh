@@ -332,10 +332,20 @@ spoof_uname() {
 spoof_bootconfig() {
     BOOTCONFIG_STATE=skipped
     # BOOTCONFIG_SRC lets the test harness feed a captured file; a boot leaves
-    # it unset and reads the real one.
-    bootconfig_src=${BOOTCONFIG_SRC:-/proc/bootconfig}
-    if [ ! -r "$bootconfig_src" ]; then
-        BOOTCONFIG_STATE="no $bootconfig_src"
+    # it unset and reads the real one. A GKI kernel serves /proc/bootconfig
+    # and SuSFS replaces that file; an older kernel has only /proc/cmdline,
+    # and SuSFS replaces that one instead, so the format follows the file.
+    if [ -n "${BOOTCONFIG_SRC:-}" ]; then
+        bootconfig_src=$BOOTCONFIG_SRC
+        bootconfig_format=bootconfig
+    elif [ -r /proc/bootconfig ]; then
+        bootconfig_src=/proc/bootconfig
+        bootconfig_format=bootconfig
+    elif [ -r /proc/cmdline ]; then
+        bootconfig_src=/proc/cmdline
+        bootconfig_format=cmdline
+    else
+        BOOTCONFIG_STATE="no bootconfig or cmdline to spoof"
         return 0
     fi
 
@@ -345,41 +355,79 @@ spoof_bootconfig() {
         log_warn "susfs: kernel does not advertise cmdline/bootconfig spoofing; trying anyway"
     fi
 
-    sed \
-        -e 's/^\(androidboot\.verifiedbootstate[ \t]*=\)[ \t]*.*/\1 green/' \
-        -e 's/^\(androidboot\.vbmeta\.device_state[ \t]*=\)[ \t]*.*/\1 locked/' \
-        -e 's/^\(androidboot\.flash\.locked[ \t]*=\)[ \t]*.*/\1 1/' \
-        -e 's/^\(androidboot\.veritymode[ \t]*=\)[ \t]*.*/\1 enforcing/' \
-        -e 's/^\(androidboot\.warranty_bit[ \t]*=\)[ \t]*.*/\1 0/' \
-        -e 's/^\(androidboot\.vbmeta\.invalidate_on_error[ \t]*=\)[ \t]*.*/\1 yes/' \
-        "$bootconfig_src" > "$fake.tmp" 2>/dev/null
-
-    if cmp -s "$bootconfig_src" "$fake.tmp"; then
-        BOOTCONFIG_STATE="nothing to spoof"
-        rm -f "$fake.tmp"
-        log_info "bootconfig: no spoofable key found"
-        return 0
+    if [ "$bootconfig_format" = cmdline ]; then
+        spoof_cmdline_file "$bootconfig_src" "$fake.tmp"
+    else
+        spoof_bootconfig_file "$bootconfig_src" "$fake.tmp"
     fi
 
-    bad=$(awk 'NF && $0 !~ /^[A-Za-z0-9_.-]+[ \t]*=/ { count++ } END { print count + 0 }' "$fake.tmp")
-    lines_before=$(wc -l < "$bootconfig_src" | tr -d ' ')
-    lines_after=$(wc -l < "$fake.tmp" | tr -d ' ')
-    if [ "${bad:-1}" != 0 ] || [ "$lines_before" != "$lines_after" ]; then
+    bad=$(awk 'NF && $0 !~ /^[A-Za-z0-9_.:-]+[ \t]*=/ { count++ } END { print count + 0 }' "$fake.tmp" 2>/dev/null)
+    if [ "${bad:-1}" != 0 ]; then
         BOOTCONFIG_STATE="rejected: transform did not validate"
         rm -f "$fake.tmp"
-        log_warn "bootconfig: refusing a transform that changed the file structure"
+        log_warn "bootconfig: refusing a transform that does not parse line by line"
         return 0
     fi
 
     mv -f "$fake.tmp" "$fake"
     chmod 0644 "$fake" 2>/dev/null
     if "$KSUD" susfs set-cmdline-or-bootconfig "$fake" >/dev/null 2>&1; then
-        BOOTCONFIG_STATE=spoofed
-        log_info "bootconfig: spoofing verified boot state from $fake"
+        BOOTCONFIG_STATE="spoofed ($bootconfig_format)"
+        log_info "bootconfig: spoofing the bootloader state in $bootconfig_src"
     else
         BOOTCONFIG_STATE="failed: kernel refused the file"
         log_warn "bootconfig: kernel refused $fake"
     fi
+}
+
+# Rewrite every table key the bootconfig already has, then append the ones it
+# lacks: a locked device reports all of them, so a missing key is itself a
+# tell. The file stays one `key = value` per line.
+spoof_bootconfig_file() {
+    src=$1
+    out=$2
+    cp -f "$src" "$out" 2>/dev/null || return 1
+    # A here-doc keeps the loop in this shell: a pipe would run it in a
+    # subshell and lose every append.
+    while read -r name value; do
+        [ -n "$name" ] || continue
+        key=$(bootconfig_key "$name") || continue
+        if grep -q "^[ \t]*${key}[ \t]*=" "$out" 2>/dev/null; then
+            sed -i "s|^\([ \t]*${key}[ \t]*=\)[ \t]*.*|\1 $value|" "$out" 2>/dev/null
+        else
+            printf '%s = %s\n' "$key" "$value" >> "$out"
+        fi
+    done <<BOOTLOADER
+$BOOTLOADER_TABLE
+BOOTLOADER
+    # Verified boot is not a property alone: the avb keys a locked device
+    # carries are added here too, from the same table.
+    grep -q '^androidboot.verifiedbootstate[ \t]*=' "$out" 2>/dev/null ||
+        printf 'androidboot.verifiedbootstate = green\n' >> "$out"
+}
+
+# The same transform for a non-GKI kernel, where the bootloader values live in
+# /proc/cmdline as space-separated tokens.
+spoof_cmdline_file() {
+    src=$1
+    out=$2
+    line=$(cat "$src" 2>/dev/null)
+    while read -r name value; do
+        [ -n "$name" ] || continue
+        key=$(bootconfig_key "$name") || continue
+        token="$key=$value"
+        case " $line " in
+            *" $key="*)
+                line=$(printf '%s' "$line" | sed "s|$key=[^ ]*|$token|")
+                ;;
+            *)
+                line="$line $token"
+                ;;
+        esac
+    done <<BOOTLOADER
+$BOOTLOADER_TABLE
+BOOTLOADER
+    printf '%s\n' "$line" > "$out"
 }
 
 # Read-only state for the status report. Nothing is written except the log.

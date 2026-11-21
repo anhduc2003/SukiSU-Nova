@@ -8,7 +8,16 @@
 # one call each, and reports how many the kernel accepted.
 #
 # Keep the levels in step with userspace/ksud/src/hide/catalog.rs and
-# device.rs; a path added there belongs here too.
+# device.rs; a path added there belongs here too. The ColorOS rows of the
+# Ace 5 pack are added below only on the devices that pack names, the same
+# way ksud selects it.
+
+# The Ace 5 pack: ColorOS state under /data/oplus and /data/oppo, hidden from
+# `balanced` up, on giulia/giuliac only.
+PACK_TABLE_ACE5='
+2 /data/oplus
+2 /data/oppo
+'
 
 PACK_TABLE='
 1 /data/adb/ksu
@@ -34,8 +43,6 @@ PACK_TABLE='
 2 /init.magisk.rc
 2 /cache/magisk.log
 2 /dev/.magisk.unblock
-2 /data/oplus
-2 /data/oppo
 3 /data/adb
 '
 
@@ -87,6 +94,8 @@ apply_own_pack() {
     fi
 
     level=$(pack_level "$profile")
+    table=$PACK_TABLE
+    [ "$DEVICE_PACK" = oneplus-ace5 ] && table="$PACK_TABLE$PACK_TABLE_ACE5"
     # The table is read line by line so a level can be skipped without a
     # second copy of the list.
     while read -r min path; do
@@ -99,7 +108,7 @@ apply_own_pack() {
             HIDE_SKIPPED=$((HIDE_SKIPPED + 1))
         fi
     done <<PACK
-$PACK_TABLE
+$table
 PACK
 
     PACK_MODE=own

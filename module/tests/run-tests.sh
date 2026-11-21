@@ -314,6 +314,16 @@ assert_contains "developer options are reported" /data/adb/novahide/status.txt "
 assert_contains "the manager package is reported" /data/adb/novahide/status.txt "manager app visible"
 assert_contains "the report says mounts are hidden" /data/adb/novahide/status.txt "hidden from non-su processes"
 
+echo "== bootloader"
+run_script action.sh action-bootloader status
+assert_contains "the report has a bootloader section" "$OUT/action-bootloader.log" "verifiedboot"
+assert_contains "the verdict reads locked" "$OUT/action-bootloader.log" "every property reads a locked device"
+run_script action.sh action-bootloader-json json
+assert_contains "the JSON carries the bootloader block" "$OUT/action-bootloader-json.log" '"bootloader":{"verifiedboot":"green"'
+assert_contains "the vendor warranty bit is forced" "$PROPS" "ro.vendor.boot.warranty_bit=0"
+assert_contains "the avb version is forced" "$PROPS" "ro.boot.vbmeta.avb_version=1.2"
+assert_contains "the hash algorithm is forced" "$PROPS" "ro.boot.vbmeta.hash_alg=sha256"
+
 echo "== bootconfig"
 (
     . "$MODDIR/common/module.sh"
@@ -327,7 +337,8 @@ echo "== bootconfig"
 assert_contains "the spoof is applied" "$OUT/bootconfig.log" "state=spoofed"
 assert_contains "verified boot is flipped" /data/adb/novahide/bootconfig.fake "androidboot.verifiedbootstate = green"
 assert_contains "vbmeta is flipped" /data/adb/novahide/bootconfig.fake "androidboot.vbmeta.device_state = locked"
-assert_count "the bootconfig keeps its line count" /data/adb/novahide/bootconfig.fake "=" 5
+assert_contains "the bootconfig gains the keys the file lacked" /data/adb/novahide/bootconfig.fake "androidboot.warranty_bit = 0"
+assert_contains "the bootconfig gains the avb hash" /data/adb/novahide/bootconfig.fake "androidboot.vbmeta.hash_alg = sha256"
 
 echo "== boot-completed"
 run_script boot-completed.sh boot-completed
@@ -602,11 +613,16 @@ rm -rf /data/misc/hide_my_applist_abcdefghijklmnop
 
 echo "== own path pack"
 : > "$CALLS"
+NOVAHIDE_TEST_NO_HIDE=1 run_script post-fs-data.sh post-fs-data-own
+assert_contains "the boot pass registers the own pack before zygote" "$CALLS" "susfs add-sus-path /data/adb/ksu"
+assert_not_contains "the boot pass makes no built-in pack call" "$CALLS" "hide apply"
+: > "$CALLS"
 NOVAHIDE_TEST_NO_HIDE=1 run_script action.sh action-ownpack apply aggressive
 assert_eq "an old ksud still applies" "$?" "0"
 assert_contains "the own pack registers a light path" "$CALLS" "susfs add-sus-path /data/adb/ksud"
 assert_contains "the own pack registers a balanced path" "$CALLS" "susfs add-sus-path /data/adb/lspd"
 assert_contains "the own pack registers the device pack" "$CALLS" "susfs add-sus-path /data/oplus"
+assert_contains "the device pack rows are included" "$OUT/action-ownpack.log" "26 applied"
 assert_contains "the own pack registers the whole tree last" "$CALLS" "susfs add-sus-path /data/adb"
 assert_contains "the report names the own list" "$OUT/action-ownpack.log" "NovaHide's own list"
 assert_not_contains "no built-in pack call is made" "$CALLS" "hide apply"

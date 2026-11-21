@@ -14,5 +14,6 @@
 . "$MODDIR/common/banking.sh"
 . "$MODDIR/common/hma.sh"
 . "$MODDIR/common/pack.sh"
+. "$MODDIR/common/bootloader.sh"
 . "$MODDIR/common/report.sh"
 . "$MODDIR/common/apply.sh"

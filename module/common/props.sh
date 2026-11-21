@@ -95,21 +95,20 @@ apply_prop_delete() {
 apply_props() {
     props_reset
 
+    # The bootloader vectors come from one table shared with the bootconfig
+    # spoof, so the two can never disagree.
+    # A here-doc, not a pipe: the counters live in this shell.
+    while read -r name value; do
+        [ -n "$name" ] || continue
+        apply_prop_expect "$name" "$value"
+    done <<BOOTLOADER
+$BOOTLOADER_TABLE
+BOOTLOADER
+
     while read -r name value; do
         [ -n "$name" ] || continue
         apply_prop_expect "$name" "$value"
     done <<'PROPS'
-ro.boot.verifiedbootstate green
-ro.boot.vbmeta.device_state locked
-ro.boot.flash.locked 1
-ro.boot.veritymode enforcing
-ro.boot.warranty_bit 0
-ro.warranty_bit 0
-ro.vendor.boot.warranty_bit 0
-ro.vendor.warranty_bit 0
-vendor.boot.verifiedbootstate green
-vendor.boot.vbmeta.device_state locked
-ro.secureboot.lockstate locked
 ro.debuggable 0
 ro.force.debuggable 0
 ro.secure 1
@@ -117,18 +116,7 @@ ro.adb.secure 1
 ro.build.type user
 ro.build.tags release-keys
 ro.crypto.state encrypted
-sys.oem_unlock_allowed 0
 PROPS
-
-    # Values whose real content is device-specific: only fill a gap.
-    while read -r name value; do
-        [ -n "$name" ] || continue
-        apply_prop_fill "$name" "$value"
-    done <<'FILL'
-ro.boot.vbmeta.invalidate_on_error yes
-ro.boot.vbmeta.avb_version 1.2
-ro.boot.vbmeta.hash_alg sha256
-FILL
 
     # An emulator marker on a phone is a contradiction no detector accepts.
     for name in ro.kernel.qemu ro.boot.qemu ro.boot.qemu.avd_name; do
