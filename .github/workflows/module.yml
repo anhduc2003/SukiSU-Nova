@@ -66,15 +66,23 @@ jobs:
             # merge commit, which a plain clone does not fetch. The header is
             # Basic, the scheme git's smart HTTP endpoint accepts; helpers are
             # disabled so a bad token fails here instead of succeeding quietly.
-            auth=$(printf 'x-access-token:%s' "${TOKEN}" | base64 | tr -d '\n')
+            # Tracing goes off before the token is encoded: secret masking
+            # redacts the token, not its base64 form.
             git init -q .
             git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
             set +x
+            auth=$(printf 'x-access-token:%s' "${TOKEN}" | base64 | tr -d '\n')
             GIT_TERMINAL_PROMPT=0 git -c credential.helper= \
               -c "http.https://github.com/.extraHeader=Authorization: Basic ${auth}" \
               fetch -q --depth 1 origin "${GITHUB_REF}"
             set -x
             git checkout -q FETCH_HEAD
+            # The ref moves: a push that lands between the event and this fetch
+            # would otherwise build a commit other than the one being reported.
+            if [ "$(git rev-parse HEAD)" != "${GITHUB_SHA}" ]; then
+              echo "checked out $(git rev-parse HEAD), expected ${GITHUB_SHA}" >&2
+              exit 1
+            fi
           fi
 
       - name: ShellCheck
@@ -109,9 +117,14 @@ jobs:
             . .github/scripts/ci/common.sh
             ci_artifact_put novahide out/*.zip
             ls -la "$(ci_artifact_path novahide)"
-          else
-            # No shared artifact volume on this runner; the zip is still built
-            # and its path and hash are in the build log above.
-            echo "no writable artifact root, leaving the zip in out/"
+          elif [ "${RUNNER_ENVIRONMENT:-}" = github-hosted ]; then
+            # A GitHub-hosted runner has no shared artifact volume at all; the
+            # zip is built and its path and hash are in the build log above.
+            echo "github-hosted runner: no artifact volume, leaving the zip in out/"
             ls -la out/
+          else
+            # A self-hosted runner is supposed to have one: a missing mount is
+            # a broken runner, not a reason to report success with no artifact.
+            echo "no writable artifact root at $root" >&2
+            exit 1
           fi
