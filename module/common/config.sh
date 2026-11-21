@@ -14,6 +14,7 @@ cfg_defaults() {
     CFG_HIDE_MAPS=1
     CFG_SPOOF_BOOTCONFIG=1
     CFG_STATUS_IN_DESCRIPTION=1
+    CFG_SUSFS_KERNEL_LOG=0
 }
 
 cfg_load() {
@@ -31,6 +32,7 @@ cfg_load() {
                 HIDE_MAPS) CFG_HIDE_MAPS=$value ;;
                 SPOOF_BOOTCONFIG) CFG_SPOOF_BOOTCONFIG=$value ;;
                 STATUS_IN_DESCRIPTION) CFG_STATUS_IN_DESCRIPTION=$value ;;
+                SUSFS_KERNEL_LOG) CFG_SUSFS_KERNEL_LOG=$value ;;
             esac
         done < "$CONFIG_FILE"
     fi
@@ -53,6 +55,7 @@ cfg_validate() {
     CFG_HIDE_MAPS=$(cfg_flag "$CFG_HIDE_MAPS" HIDE_MAPS)
     CFG_SPOOF_BOOTCONFIG=$(cfg_flag "$CFG_SPOOF_BOOTCONFIG" SPOOF_BOOTCONFIG)
     CFG_STATUS_IN_DESCRIPTION=$(cfg_flag "$CFG_STATUS_IN_DESCRIPTION" STATUS_IN_DESCRIPTION)
+    CFG_SUSFS_KERNEL_LOG=$(cfg_flag "$CFG_SUSFS_KERNEL_LOG" SUSFS_KERNEL_LOG)
 }
 
 cfg_flag() {
@@ -104,6 +107,10 @@ SPOOF_BOOTCONFIG=1
 # Rewrite module.prop's description with the last run's summary, so the
 # manager's module list shows the state without opening anything.
 STATUS_IN_DESCRIPTION=1
+
+# SuSFS logs every operation to the kernel log, where a process that can read
+# dmesg sees the hides being registered. 1 turns the log back on for debugging.
+SUSFS_KERNEL_LOG=0
 EOF
     chmod 0644 "$CONFIG_FILE"
     chown 0:0 "$CONFIG_FILE" 2>/dev/null

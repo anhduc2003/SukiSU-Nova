@@ -7,6 +7,7 @@
 #   action.sh status              read-only report
 #   action.sh json                read-only report as one JSON line
 #   action.sh log [lines]         tail of the module log
+#   action.sh purge               delete the logs, status and cached state
 #   action.sh reset               restore the default config
 #
 # The manager runs the script with no argument, which is why the default is a
@@ -40,6 +41,12 @@ case "${1:-apply}" in
             printf 'no log yet: %s\n' "$LOG_FILE"
         fi
         ;;
+    purge)
+        rm -f "$LOG_FILE" "$LOG_FILE.1" "$STATUS_FILE" "$STATE_FILE" "$COMPANIONS_FILE" \
+            "$DATA_DIR/bootconfig.orig" "$DATA_DIR/bootconfig.fake" \
+            "$DATA_DIR/maps.list" "$DATA_DIR/target.txt.keep" "$DATA_DIR/target.txt.tmp"
+        printf 'module traces removed from %s (config kept)\n' "$DATA_DIR"
+        ;;
     reset)
         rm -f "$CONFIG_FILE"
         cfg_defaults
@@ -47,7 +54,7 @@ case "${1:-apply}" in
         printf 'config reset to defaults: %s\n' "$CONFIG_FILE"
         ;;
     *)
-        printf 'usage: action.sh [apply [auto|off|light|balanced|aggressive]|status|json|log [lines]|reset]\n'
+        printf 'usage: action.sh [apply [auto|off|light|balanced|aggressive]|status|json|log [lines]|purge|reset]\n'
         exit 2
         ;;
 esac

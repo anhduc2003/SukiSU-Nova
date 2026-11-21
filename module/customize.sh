@@ -35,13 +35,17 @@ cfg_write_default
 ui_print "- Config: $CONFIG_FILE"
 
 declare_features
-ui_print "- Owning kernel features: selinux_hide avc_spoof mount_hide"
+ui_print "- Owning kernel features: $FEATURES"
 
 collect_companions read
 ui_print "- Hiding modules found:"
 companions_text | while read -r line; do
     ui_print "  $line"
 done
+
+# Nothing in this module is ever mounted: an unmounted module has no mount to
+# filter out of /proc/mounts in the first place.
+: > "$MODPATH/skip_mount"
 
 for script in post-fs-data.sh service.sh boot-completed.sh action.sh uninstall.sh; do
     [ -f "$MODPATH/$script" ] && chmod 0755 "$MODPATH/$script"

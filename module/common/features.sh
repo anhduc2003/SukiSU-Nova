@@ -6,13 +6,14 @@
 #   selinux_hide  sanitises /sys/fs/selinux reads for app UIDs
 #   avc_spoof     fixes the SELinux context leaks in AVC denial logs
 #   mount_hide    filters module mounts out of app and isolated /proc views
+#   kernel_umount unmounts module mounts for apps that do not need them
 #
 # A module can own a feature by writing `manage.<name>=true` into its module
 # config; ksud then skips that feature during its own init and only lets the
 # owning module change it. Owning them is the point: without an owner, a user
 # toggling a switch in the manager can silently turn one back off.
 
-FEATURES="selinux_hide avc_spoof mount_hide"
+FEATURES="selinux_hide avc_spoof mount_hide kernel_umount"
 FEATURE_SUMMARY=
 
 declare_features() {

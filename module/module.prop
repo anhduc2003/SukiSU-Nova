@@ -5,4 +5,4 @@ versionCode=10000
 author=anhduc2003
 description=NovaHide v1.0.0 - not applied yet; tap the module action button to run the first pass
 updateJson=
-managedFeatures=selinux_hide,avc_spoof,mount_hide
+managedFeatures=selinux_hide,avc_spoof,mount_hide,kernel_umount

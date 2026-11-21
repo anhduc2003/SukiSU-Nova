@@ -40,14 +40,22 @@ apply_all() {
     # Hide first, then the rest: a detector that starts while this runs should
     # already see the paths gone.
     apply_hide "$requested_profile"
-    apply_extra_paths
-    apply_mount_hiding
 
-    if [ "$CFG_HIDE_MAPS" = 1 ]; then
-        apply_maps
-    fi
-    if [ "$CFG_SPOOF_BOOTCONFIG" = 1 ]; then
-        spoof_bootconfig
+    # `off` means no SuSFS state at all, including this module's own paths: a
+    # user who turned path hiding off did not ask for a quiet corner of it to
+    # stay on.
+    if [ "$PROFILE_USED" = off ]; then
+        log_info "susfs: profile off, no paths, mounts, maps or bootconfig"
+    else
+        apply_extra_paths
+        apply_mount_hiding
+        if [ "$CFG_HIDE_MAPS" = 1 ]; then
+            apply_maps
+        fi
+        if [ "$CFG_SPOOF_BOOTCONFIG" = 1 ]; then
+            spoof_bootconfig
+        fi
+        apply_susfs_log
     fi
     if [ "$CFG_CONFIGURE_COMPANIONS" = 1 ]; then
         collect_companions write
@@ -186,10 +194,11 @@ apply_hide() {
 }
 
 # The catalog covers /data/adb at the aggressive level only, so the module's
-# own state is registered explicitly and stays hidden at every level.
+# own state and its directory are registered explicitly and stay hidden at
+# every level above off.
 apply_extra_paths() {
     EXTRA_PATHS=0
-    for path in "$DATA_DIR" /data/system/nyazygisk; do
+    for path in "$DATA_DIR" "$MODDIR"; do
         [ -e "$path" ] || continue
         if "$KSUD" susfs add-sus-path "$path" >/dev/null 2>&1; then
             EXTRA_PATHS=$((EXTRA_PATHS + 1))
@@ -198,6 +207,20 @@ apply_extra_paths() {
         fi
     done
     log_info "susfs: $EXTRA_PATHS extra path(s) registered"
+}
+
+# SuSFS logs every operation to the kernel log, where anything that can read
+# dmesg sees the hides being registered. Off unless someone is debugging.
+apply_susfs_log() {
+    if [ "$CFG_SUSFS_KERNEL_LOG" = 1 ]; then
+        "$KSUD" susfs enable-log 1 >/dev/null 2>&1 && log_info "susfs: kernel log on (debugging)"
+        return 0
+    fi
+    if "$KSUD" susfs enable-log 0 >/dev/null 2>&1; then
+        log_info "susfs: kernel log off"
+    else
+        log_warn "susfs: could not turn the kernel log off"
+    fi
 }
 
 apply_mount_hiding() {

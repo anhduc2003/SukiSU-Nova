@@ -12,8 +12,10 @@ It bundles nobody else's binaries. It drives what is already on the device.
 | Layer | What NovaHide does | Where it comes from |
 |---|---|---|
 | SuSFS path packs | Applies a profile (`light` … `aggressive`), device pack included | `ksud hide apply` |
-| Kernel features | Owns and enables `selinux_hide`, `avc_spoof`, `mount_hide` | `ksud feature set` |
+| Kernel features | Owns and enables `selinux_hide`, `avc_spoof`, `mount_hide`, `kernel_umount` | `ksud feature set` |
 | Mount hiding | Hides SUS mounts from every non-su process | `ksud susfs hide-sus-mnts-for-non-su-procs` |
+| Kernel log | Turns SuSFS's own kernel logging off, so dmesg carries no hide records | `ksud susfs enable-log` |
+| Self-hiding | Registers this module's directory and data dir, never mounts anything (`skip_mount`) | `ksud susfs add-sus-path` |
 | Map hiding | Hides Zygisk payloads from `/proc/<pid>/maps` | `ksud susfs add-sus-map` |
 | Boot properties | Forces verified boot, warranty and debuggable properties to the stock values | `ksud resetprop` |
 | Bootconfig | Serves a sanitised `/proc/bootconfig` | `ksud susfs set-cmdline-or-bootconfig` |
@@ -45,7 +47,7 @@ It bundles nobody else's binaries. It drives what is already on the device.
 | `post-fs-data.sh` | Properties and kernel features first, then the hide pack — before any app process exists |
 | `service.sh` | Paths, maps, bootconfig and the companion modules; writes the report |
 | `boot-completed.sh` | One more pass once the system is settled, then the final report |
-| `action.sh` | The manager action button and the WebUI: apply, status, JSON, log, reset |
+| `action.sh` | The manager action button and the WebUI: apply, status, JSON, log, purge, reset |
 | `webroot/` | WebUI: verdicts, counts, companion modules, one-tap apply |
 
 Everything is idempotent. Running the action twice does not duplicate a target
@@ -64,10 +66,29 @@ or re-add a path with a different meaning.
 | `HIDE_MAPS` | `1` | Hide Zygisk payloads from `/proc/<pid>/maps`. |
 | `SPOOF_BOOTCONFIG` | `1` | Serve a sanitised `/proc/bootconfig`. |
 | `STATUS_IN_DESCRIPTION` | `1` | Put the last run's summary into `module.prop`. |
+| `SUSFS_KERNEL_LOG` | `0` | `1` turns SuSFS kernel logging back on for debugging. |
 
-`PROFILE` controls path hiding only. Properties, kernel features and companion
-modules have their own switches, so `PROFILE=off` still sanitises the
-bootloader properties — that part is what most detectors read first.
+`PROFILE` controls the SuSFS side: the path packs, the extra self paths, mount
+hiding, map hiding, the bootconfig and the kernel log. `off` leaves all of it
+alone. Properties, kernel features and companion modules have their own
+switches, so `PROFILE=off` still sanitises the bootloader properties — that part
+is what most detectors read first.
+
+## Hiding the module itself
+
+- The module mounts nothing (`skip_mount`), so there is no mount of its own to
+  find in `/proc/mounts`.
+- Its directory and its data directory are registered as SuSFS paths
+  explicitly, not only through the catalog's `/data/adb/modules` row.
+- Everything it writes (log, status, last apply, bootconfig copies, the
+  `target.txt` snapshot) lives under `/data/adb/novahide`.
+- `action.sh purge` deletes those traces and keeps the config, for when the
+  device leaves your hands.
+- `SUSFS_KERNEL_LOG=0` keeps the kernel log free of hide registrations.
+- The Zygisk payloads are hidden from `/proc/<pid>/maps`. The runtime directory
+  itself (`/data/system/nyazygisk`) is deliberately **not** hidden as a path:
+  injected processes read their config from it, and hiding it would break the
+  injection it is supposed to conceal.
 
 ## The verdict, honestly
 
@@ -124,7 +145,8 @@ still fail an app's own extra checks.
   manager package, an unlocked bootloader in `/proc/bootconfig`, or a keybox it
   does not accept. `action.sh status` names what is missing, not what to install.
 - Logs: `/data/adb/novahide/novahide.log` (rotated once at 256 KiB), last
-  report in `/data/adb/novahide/status.txt`.
+  report in `/data/adb/novahide/status.txt`. `action.sh purge` removes both
+  and the cached state, and keeps the config.
 
 ## Development
 

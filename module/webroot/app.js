@@ -65,7 +65,7 @@
     }
 
     function setBusy(busy) {
-        ['apply', 'refresh', 'log', 'reset'].forEach(function (id) {
+        ['apply', 'refresh', 'log', 'purge', 'reset'].forEach(function (id) {
             var el = $(id);
             if (el) {
                 el.disabled = busy;
@@ -108,6 +108,20 @@
         $(id).textContent = text;
     }
 
+    // The applied count is what the last apply registered, not the catalogue
+    // size; a status run with no recorded apply must not claim a number.
+    function hideStat(hide, mode) {
+        var applied = Number(hide.applied || 0);
+        var entries = Number(hide.entries || 0);
+        if (!mode && !hide.recorded) {
+            return 'not verified';
+        }
+        if (entries > 0) {
+            return applied + '/' + entries + ' applied';
+        }
+        return applied + ' applied';
+    }
+
     function render(data) {
         var device = data.device || {};
         var label = device.label || 'Android';
@@ -124,9 +138,7 @@
         var hide = data.hide || {};
         var props = data.props || {};
         var mode = data.mode === 'apply';
-        setStat('s-hidden', mode
-            ? String(hide.applied || 0) + ' applied'
-            : String(hide.applied || 0) + ' entries');
+        setStat('s-hidden', hideStat(hide, mode));
         setStat('s-props', mode
             ? String(props.fixed || 0) + ' fixed'
             : String(props.ok || 0) + '/' + ((props.ok || 0) + (props.failed || 0)) + ' ok');
@@ -231,6 +243,19 @@
         }
     }
 
+    async function purgeTraces() {
+        setBusy(true);
+        try {
+            var res = await run(actionCommand('purge'), 45000);
+            showOutput(res.out || res.err);
+            await refresh();
+        } catch (err) {
+            setNotice('Purge failed: ' + err.message);
+        } finally {
+            setBusy(false);
+        }
+    }
+
     async function resetConfig() {
         setBusy(true);
         try {
@@ -249,6 +274,7 @@
         $('apply').addEventListener('click', applyProfile);
         $('refresh').addEventListener('click', refresh);
         $('log').addEventListener('click', showLog);
+        $('purge').addEventListener('click', purgeTraces);
         $('reset').addEventListener('click', resetConfig);
 
         if (!bridge()) {

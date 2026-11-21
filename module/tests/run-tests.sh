@@ -145,11 +145,16 @@ case "$cmd" in
                     printf 'hide: no SuSFS on this kernel\n'
                     exit 1
                 fi
+                profile=${1:-aggressive}
+                if [ "$profile" = off ]; then
+                    printf 'hide: off — 0 applied, 0 skipped\n'
+                    exit 0
+                fi
                 if [ -n "${NOVAHIDE_TEST_KSUD_INTEGRATES:-}" ] && [ -f /data/adb/tricky_store/target.txt ]; then
                     grep -qx 'com.google.android.gms' /data/adb/tricky_store/target.txt ||
                         printf 'com.google.android.gms\ncom.android.vending\n' >> /data/adb/tricky_store/target.txt
                 fi
-                printf 'hide: %s — 12 applied, 1 skipped\n' "${1:-aggressive}"
+                printf 'hide: %s — 12 applied, 1 skipped\n' "$profile"
                 printf '  skipped /data/adb/zygisksu: not present\n'
                 printf 'TrickyStore: target.txt already lists the attestation packages\n'
                 ;;
@@ -261,11 +266,15 @@ assert_contains "warranty bit is cleared" "$PROPS" "ro.boot.warranty_bit=0"
 assert_contains "debuggable is off" "$PROPS" "ro.debuggable=0"
 assert_contains "the hide pack is applied early" "$CALLS" "hide apply"
 assert_contains "kernel features are enabled" "$CALLS" "feature set selinux_hide 1"
+assert_contains "module mounts are unmounted for apps" "$CALLS" "feature set kernel_umount 1"
 
 echo "== service"
 run_script service.sh service
 assert_eq "service exits 0" "$?" "0"
 assert_contains "the module state is hidden explicitly" "$CALLS" "susfs add-sus-path /data/adb/novahide"
+assert_contains "the module directory is hidden explicitly" "$CALLS" "susfs add-sus-path /data/adb/modules/novahide"
+assert_not_contains "the zygisk runtime dir stays readable" "$CALLS" "add-sus-path /data/system/nyazygisk"
+assert_contains "the SUSFS kernel log is turned off" "$CALLS" "susfs enable-log 0"
 assert_contains "SUS mounts are hidden per process" "$CALLS" "susfs hide-sus-mnts-for-non-su-procs 1"
 assert_contains "the staged payload map is hidden" "$CALLS" "susfs add-sus-map /data/adb/ksu/zygisk/lib64/libzygisk.so"
 assert_contains "the runtime payload map is hidden" "$CALLS" "susfs add-sus-map /data/system/nyazygisk/lib64/libzygisk.so"
@@ -334,6 +343,17 @@ run_script service.sh service-light
 assert_contains "a configured profile is applied at boot" "$CALLS" "hide apply light"
 sed -i 's/^PROFILE=light$/PROFILE=auto/' /data/adb/novahide/config.conf
 
+echo "== profile off"
+: > "$CALLS"
+sed -i 's/^PROFILE=auto$/PROFILE=off/' /data/adb/novahide/config.conf
+run_script service.sh service-off
+assert_eq "off exits 0" "$?" "0"
+assert_contains "off applies the empty pack" "$CALLS" "hide apply off"
+assert_not_contains "off registers no extra paths" "$CALLS" "add-sus-path"
+assert_not_contains "off hides no maps" "$CALLS" "add-sus-map"
+assert_not_contains "off leaves the kernel log alone" "$CALLS" "enable-log"
+sed -i 's/^PROFILE=off$/PROFILE=auto/' /data/adb/novahide/config.conf
+
 echo "== companions opt-out"
 printf 'com.example.bank\n' > /data/adb/tricky_store/target.txt
 cp -f /data/adb/novahide/config.conf /data/adb/novahide/config.conf.keep
@@ -372,6 +392,13 @@ cat /data/adb/novahide/status.txt
 printf '\n'
 tail -n 1 "$OUT/action-json.log"
 printf '\n'
+
+echo "== purge"
+run_script action.sh action-purge purge
+assert_eq "purge exits 0" "$?" "0"
+assert_ok test ! -f /data/adb/novahide/novahide.log
+assert_ok test ! -f /data/adb/novahide/status.txt
+assert_ok test -f /data/adb/novahide/config.conf
 
 echo "== uninstall"
 run_script uninstall.sh uninstall
