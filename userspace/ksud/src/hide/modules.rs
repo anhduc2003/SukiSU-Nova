@@ -25,7 +25,10 @@ const LSPOSED_DIR: &str = "/data/adb/lspd";
 const RIRU_DIR: &str = "/data/adb/riru";
 const APATCH_DIR: &str = "/data/adb/ap";
 const KPM_DIR: &str = "/data/adb/kpm";
-const BUILTIN_ZYGISK_DIR: &str = "/data/adb/nyazygisk";
+/// Where current builds stage the built-in Zygisk binaries
+/// (`defs::BUILTIN_ZYGISK_DIR`); `/data/adb/nyazygisk` is only the legacy
+/// location that `builtin_zygisk` removes as a leftover.
+const BUILTIN_ZYGISK_DIR: &str = "/data/adb/ksu/zygisk";
 
 /// Packages that run Play Integrity attestation, which is what a banking app
 /// actually asks. TrickyStore only spoofs the packages listed in

@@ -76,7 +76,7 @@ pub const ENTRIES: &[HideEntry] = &[
     path(
         "/data/adb/nyazygisk",
         HideProfile::Balanced,
-        "built-in Zygisk data dir",
+        "legacy built-in Zygisk staging dir; current builds use /data/adb/ksu/zygisk",
     ),
     path(
         "/data/adb/lspd",
