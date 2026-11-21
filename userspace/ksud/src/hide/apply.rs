@@ -7,6 +7,7 @@ use anyhow::{Result, bail};
 
 use super::catalog::{ENTRIES, HideEntry};
 use super::device;
+use super::modules::{self, ModuleNote};
 use super::profile::HideProfile;
 use crate::susfs;
 
@@ -23,6 +24,8 @@ pub struct HideReport {
     pub device: Option<&'static str>,
     pub applied: usize,
     pub skipped: Vec<HideSkip>,
+    /// What the hiding modules installed here contribute or still need.
+    pub modules: Vec<ModuleNote>,
 }
 
 impl HideReport {
@@ -41,6 +44,7 @@ impl HideReport {
         for skip in &self.skipped {
             let _ = writeln!(out, "  skipped {}: {}", skip.value, skip.reason);
         }
+        out.push_str(&modules::render(&self.modules, "  "));
         out
     }
 }
@@ -70,6 +74,7 @@ pub fn apply(profile: HideProfile) -> Result<HideReport> {
             device: matched.as_ref().map(|matched| matched.pack.name),
             applied: 0,
             skipped: Vec::new(),
+            modules: Vec::new(),
         });
     }
     if !susfs::get_susfs_status() {
@@ -81,6 +86,7 @@ pub fn apply(profile: HideProfile) -> Result<HideReport> {
         device: matched.as_ref().map(|matched| matched.pack.name),
         applied: 0,
         skipped: Vec::new(),
+        modules: modules::integrate(),
     };
     for entry in rows(profile, matched.as_ref()) {
         match apply_entry(entry) {
@@ -125,6 +131,7 @@ pub fn status() -> Result<String> {
     let _ = writeln!(out, "version: {}", susfs::get_susfs_version());
     let _ = writeln!(out, "variant: {}", susfs::get_susfs_variant());
     let _ = writeln!(out, "entries: {}", rows(profile, matched.as_ref()).len());
+    out.push_str(&modules::render(&modules::inspect(), ""));
     Ok(out)
 }
 

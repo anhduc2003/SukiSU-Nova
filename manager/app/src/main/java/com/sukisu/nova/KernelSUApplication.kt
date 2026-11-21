@@ -23,6 +23,9 @@ import com.sukisu.nova.ai.host.ManagerAiHost
 import com.sukisu.nova.data.repository.SettingsRepositoryImpl
 import com.sukisu.nova.data.repository.SuperUserRepositoryImpl
 import com.sukisu.nova.ui.util.BuiltinAppIcons
+import com.sukisu.nova.ui.util.getKsuDaemonPath
+import com.sukisu.nova.ui.util.getRootShell
+import com.sukisu.nova.ui.util.shellQuote
 import com.sukisu.nova.ui.viewmodel.SuperUserViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -83,6 +86,19 @@ class KernelSUApplication : Application(), ViewModelStoreOwner {
 
         if (!isUserUnlocked()) {
             return
+        }
+
+        // Apply the built-in hide pack as soon as the manager is opened, so a fresh install
+        // hides root without waiting for the next boot. `hide apply` is idempotent: the boot
+        // script applies the same list again and an already-hidden path counts as success.
+        // getRootShell() runs the bundled daemon's `debug su`, which still works when
+        // su_compat is off; libsu's own su lookup would fail in that configuration.
+        launcherRestoreScope.launch {
+            runCatching {
+                getRootShell().newJob()
+                    .add("${getKsuDaemonPath().shellQuote()} hide apply")
+                    .exec()
+            }
         }
 
         // Launcher components are intentionally left alone while the process starts. An update

@@ -818,6 +818,8 @@ enum Hide {
         /// off, light, balanced or aggressive
         profile: Option<String>,
     },
+    /// List the known hiding modules: installed or not, and what each needs
+    Modules,
 }
 
 #[cfg(target_arch = "aarch64")]
@@ -1649,6 +1651,9 @@ pub fn run() -> Result<()> {
                 }
                 Hide::List { profile } => {
                     print!("{}", hide::list(resolve(profile)?));
+                }
+                Hide::Modules => {
+                    print!("{}", hide::inventory());
                 }
             }
             Ok(())
