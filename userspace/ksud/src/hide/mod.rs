@@ -29,6 +29,7 @@ pub mod modules;
 pub mod profile;
 
 pub use apply::{apply, list, status};
+pub use modules::inventory;
 pub use profile::HideProfile;
 
 use anyhow::Result;

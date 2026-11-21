@@ -131,7 +131,7 @@ pub fn status() -> Result<String> {
     let _ = writeln!(out, "version: {}", susfs::get_susfs_version());
     let _ = writeln!(out, "variant: {}", susfs::get_susfs_variant());
     let _ = writeln!(out, "entries: {}", rows(profile, matched.as_ref()).len());
-    out.push_str(&modules::render(&modules::integrate(), ""));
+    out.push_str(&modules::render(&modules::inspect(), ""));
     Ok(out)
 }
 
