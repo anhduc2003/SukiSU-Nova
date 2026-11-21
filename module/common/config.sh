@@ -23,7 +23,9 @@ cfg_load() {
     if [ -f "$CONFIG_FILE" ]; then
         while IFS='=' read -r key value; do
             key=$(printf '%s' "$key" | tr -d ' \t\r')
-            value=$(printf '%s' "$value" | tr -d ' \t\r')
+            # Trim the edges but keep interior spaces: EXTRA_BANKING_APPS
+            # uses them to separate package names.
+            value=$(printf '%s' "$value" | tr -d '\t\r' | sed -e 's/^ *//' -e 's/ *$//')
             case "$key" in
                 ''|'#'*) continue ;;
                 PROFILE) CFG_PROFILE=$value ;;

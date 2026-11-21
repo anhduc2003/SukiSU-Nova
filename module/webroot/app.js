@@ -157,9 +157,7 @@
             ['features', data.features || '—'],
             ['zygisk', data.zygisk || '—'],
             ['banking', bankingApps(data.banking)],
-            ['bank risk', (data.banking && data.banking.risks)
-                ? data.banking.risks
-                : "nothing beyond the app's own checks"],
+            ['bank risk', bankRisk(data.banking)],
             ['log', data.log || '—']
         ].forEach(function (pair) {
             var dt = document.createElement('dt');
@@ -195,6 +193,19 @@
             return 'no known Vietnamese banking app';
         }
         return banking.apps.join(', ');
+    }
+
+    // An empty risks field means two different things: the checks ran and
+    // found nothing (count > 0), or they never ran because no listed bank
+    // is installed (count 0). Only the first is a clean result.
+    function bankRisk(banking) {
+        if (!banking) {
+            return 'unknown';
+        }
+        if (!banking.count) {
+            return 'not checked: no banking app installed';
+        }
+        return banking.risks || "nothing beyond the app's own checks";
     }
 
     function stateClass(state) {

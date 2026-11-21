@@ -122,7 +122,7 @@ EOF
 cat > "$STUB_BIN/pm" <<'EOF'
 #!/bin/sh
 [ "$1" = list ] || exit 0
-printf 'package:com.vcb\npackage:com.mbmobile\npackage:com.example.extra\npackage:com.sukisu.nova\npackage:com.android.settings\n'
+printf 'package:com.vcb\npackage:com.mbmobile\npackage:com.example.extra\npackage:com.example.extra2\npackage:com.sukisu.nova\npackage:com.android.settings\n'
 EOF
 
 cat > "$STUB_BIN/settings" <<'EOF'
@@ -305,7 +305,8 @@ assert_contains "a per-target mode suffix survives" /data/adb/tricky_store/targe
 assert_ok test -f /data/adb/novahide/status.txt
 assert_contains "the report has a verdict" /data/adb/novahide/status.txt "BASIC"
 assert_contains "the report names the device" /data/adb/novahide/status.txt "OnePlus Ace 5"
-assert_contains "the description carries the summary" "$MODDIR/module.prop" "description=NovaHide v1.0.0 | aggressive | 12 hidden"
+version=$(sed -n 's/^version=//p' "$MODDIR/module.prop" | head -n 1)
+assert_contains "the description carries the summary" "$MODDIR/module.prop" "description=NovaHide $version | aggressive | 12 hidden"
 assert_contains "the report names an installed bank" /data/adb/novahide/status.txt "Vietcombank"
 assert_contains "the report names the second bank" /data/adb/novahide/status.txt "MB Bank"
 assert_contains "developer options are reported" /data/adb/novahide/status.txt "developer options on"
@@ -391,9 +392,14 @@ mv -f /data/adb/novahide/config.conf.keep /data/adb/novahide/config.conf
 
 echo "== banking extras"
 cp -f /data/adb/novahide/config.conf /data/adb/novahide/config.conf.keep
-sed -i 's/^EXTRA_BANKING_APPS=.*$/EXTRA_BANKING_APPS=com.example.extra/' /data/adb/novahide/config.conf
+sed -i 's/^EXTRA_BANKING_APPS=.*$/EXTRA_BANKING_APPS=com.example.extra com.example.extra2/' /data/adb/novahide/config.conf
 run_script action.sh action-banking status
 assert_contains "an extra banking package is reported" "$OUT/action-banking.log" "com.example.extra"
+assert_contains "a second space-separated extra is reported" "$OUT/action-banking.log" "com.example.extra2"
+sed -i 's/^EXTRA_BANKING_APPS=.*$/EXTRA_BANKING_APPS=com.example.extra,com.example.extra2/' /data/adb/novahide/config.conf
+run_script action.sh action-banking status
+assert_contains "a comma-separated extra is reported" "$OUT/action-banking.log" "com.example.extra"
+assert_contains "the second comma-separated extra is reported" "$OUT/action-banking.log" "com.example.extra2"
 mv -f /data/adb/novahide/config.conf.keep /data/adb/novahide/config.conf
 
 echo "== disabled fingerprint"
