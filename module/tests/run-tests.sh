@@ -1,5 +1,5 @@
 #!/bin/sh
-# shellcheck disable=SC1091,SC2269,SC2329
+# shellcheck disable=SC1091,SC2269,SC2317,SC2329
 # Behavioural test for NovaHide.
 #
 # The module addresses /data/adb by absolute path, so the only honest way to
@@ -274,7 +274,9 @@ echo "== bootconfig"
     . "$MODDIR/common/module.sh"
     log_init
     cfg_load
-    spoof_bootconfig /data/adb/test-bootconfig
+    BOOTCONFIG_SRC=/data/adb/test-bootconfig
+    export BOOTCONFIG_SRC
+    spoof_bootconfig
     printf 'state=%s\n' "$BOOTCONFIG_STATE"
 ) > "$OUT/bootconfig.log" 2>&1
 assert_contains "the spoof is applied" "$OUT/bootconfig.log" "state=spoofed"

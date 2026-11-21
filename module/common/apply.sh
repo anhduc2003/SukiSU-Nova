@@ -169,9 +169,9 @@ apply_maps() {
 # everything else stays exactly as the bootloader wrote it.
 spoof_bootconfig() {
     BOOTCONFIG_STATE=skipped
-    # The source is a parameter so the test harness can feed a captured file;
-    # a boot passes nothing and reads the real one.
-    bootconfig_src=${1:-/proc/bootconfig}
+    # BOOTCONFIG_SRC lets the test harness feed a captured file; a boot leaves
+    # it unset and reads the real one.
+    bootconfig_src=${BOOTCONFIG_SRC:-/proc/bootconfig}
     if [ ! -r "$bootconfig_src" ]; then
         BOOTCONFIG_STATE="no $bootconfig_src"
         return 0
