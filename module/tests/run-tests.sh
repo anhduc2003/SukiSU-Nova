@@ -416,7 +416,14 @@ run_script action.sh action-conflicts-fix apply balanced
 assert_eq "the remediation run exits 0" "$?" "0"
 assert_ok test -f /data/adb/modules/zygisknext/disable
 assert_contains "the disabled module is logged" /data/adb/novahide/novahide.log "disabled /data/adb/modules/zygisknext"
+run_script action.sh action-conflicts-pending json
+assert_contains "the conflict stays reported while the module still runs" "$OUT/action-conflicts-pending.log" '"name":"Zygisk twice"'
+assert_contains "the pending disable says so" "$OUT/action-conflicts-pending.log" "still runs this boot"
 rm -f /data/adb/modules/zygisknext/disable
+run_script action.sh action-conflicts-undo apply balanced
+assert_ok test ! -f /data/adb/modules/zygisknext/disable
+assert_contains "the undo stands down to report-only" "$OUT/action-conflicts-undo.log" "keep one"
+rm -f /data/adb/novahide/disabled.list
 rm -rf /data/adb/modules/pif /data/adb/modules/zygisknext
 sed -i 's/^AUTO_DISABLE_CONFLICTS=1$/AUTO_DISABLE_CONFLICTS=0/' /data/adb/novahide/config.conf
 

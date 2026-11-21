@@ -125,9 +125,11 @@ SUSFS_KERNEL_LOG=0
 # Conflicts between the modules installed here can leak root on their own
 # (two Zygisk stacks, two fingerprint modules, a second hide pack). 0 reports
 # them and changes nothing. 1 also drops the disable marker on the module
-# NovaHide names for a fixable conflict; that takes effect at the next boot,
-# and NovaHide never re-enables a module, so delete the marker yourself if
-# you want it back.
+# NovaHide names for a fixable conflict; that takes effect at the next boot.
+# NovaHide disables each module once and records it in
+# /data/adb/novahide/disabled.list: delete the module's disable marker to
+# bring it back, and NovaHide stands down for it. The record is a trace like
+# the rest; Purge traces clears it.
 AUTO_DISABLE_CONFLICTS=0
 
 # Banking apps this module does not know, space or comma separated. The list is

@@ -15,6 +15,7 @@ STATUS_FILE=$DATA_DIR/status.txt
 STATE_FILE=$DATA_DIR/last-apply
 COMPANIONS_FILE=$DATA_DIR/companions.txt
 CONFLICTS_FILE=$DATA_DIR/conflicts.txt
+DISABLED_LIST=$DATA_DIR/disabled.list
 MODULE_PROP=$MODDIR/module.prop
 
 # Version from module.prop, so the scripts never carry a second copy of it.

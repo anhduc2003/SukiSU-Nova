@@ -43,7 +43,7 @@ case "${1:-apply}" in
         ;;
     purge)
         rm -f "$LOG_FILE" "$LOG_FILE.1" "$STATUS_FILE" "$STATE_FILE" "$COMPANIONS_FILE" \
-            "$CONFLICTS_FILE" \
+            "$CONFLICTS_FILE" "$DISABLED_LIST" \
             "$DATA_DIR/bootconfig.orig" "$DATA_DIR/bootconfig.fake" \
             "$DATA_DIR/maps.list" "$DATA_DIR/target.txt.keep" "$DATA_DIR/target.txt.tmp"
         printf 'module traces removed from %s (config kept)\n' "$DATA_DIR"

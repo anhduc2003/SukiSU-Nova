@@ -69,7 +69,7 @@ or re-add a path with a different meaning.
 | `SPOOF_BOOTCONFIG` | `1` | Serve a sanitised `/proc/bootconfig`. |
 | `STATUS_IN_DESCRIPTION` | `1` | Put the last run's summary into `module.prop`. |
 | `SUSFS_KERNEL_LOG` | `0` | `1` turns SuSFS kernel logging back on for debugging. |
-| `AUTO_DISABLE_CONFLICTS` | `0` | `1` also disables the conflicting module NovaHide names for a fixable conflict (see "Module conflicts"). Takes effect at the next boot. |
+| `AUTO_DISABLE_CONFLICTS` | `0` | `1` also disables the conflicting module NovaHide names for a fixable conflict (see "Module conflicts"). Takes effect at the next boot, once per module. |
 
 `PROFILE` controls the SuSFS side: the path packs, the extra self paths, mount
 hiding, map hiding, the bootconfig and the kernel log. `off` registers nothing
@@ -115,9 +115,16 @@ The scan is a report by default and changes nothing. With
 `AUTO_DISABLE_CONFLICTS=1`, a write pass (boot or the Apply button) drops the
 disable marker on the losing module of the two fixable conflicts — Zygisk Next
 when the built-in stack runs, and `susfs_manager`. The marker takes effect at
-the next boot, NovaHide never re-enables a module, and deleting the marker
-brings the module back; which of the two Zygisk stacks to keep is always
-yours, so re-check the WebUI after switching the flag on.
+the next boot, so the report keeps naming the conflict for the rest of that
+boot: the module still runs until the manager honours the marker.
+
+NovaHide disables each module once and records it in
+`/data/adb/novahide/disabled.list`. Delete a module's disable marker to bring
+it back and NovaHide stands down — a later apply will not write the marker
+again. The record is a trace like the rest: Purge traces clears it, after
+which NovaHide may act on the same conflict again. Which of the two Zygisk
+stacks to keep is always yours, so re-check the WebUI after switching the
+flag on.
 
 ## Vietnamese banking apps
 

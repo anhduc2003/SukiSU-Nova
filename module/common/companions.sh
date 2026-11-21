@@ -265,11 +265,35 @@ module_disable() {
     if : > "$dir/disable" 2>/dev/null; then
         chmod 0644 "$dir/disable" 2>/dev/null
         chown 0:0 "$dir/disable" 2>/dev/null
+        printf '%s|%s\n' "$dir" "$boot_id" >> "$DISABLED_LIST" 2>/dev/null
         log_warn "conflicts: disabled $dir (delete the disable marker to undo)"
         return 0
     fi
     log_warn "conflicts: could not write the disable marker in $dir"
     return 1
+}
+
+# The disable marker only takes effect at the next boot, so a marker NovaHide
+# wrote this boot means the module is still injecting right now. Recorded by
+# boot id: once the device has rebooted, the manager has honoured the marker
+# and the module is genuinely off.
+conflict_marker_fresh() {
+    [ -f "$DISABLED_LIST" ] && [ -n "$boot_id" ] || return 1
+    awk -F'|' -v dir="$1" -v boot="$boot_id" '
+        $1 == dir && $2 == boot { found = 1 }
+        END { exit(found ? 0 : 1) }
+    ' "$DISABLED_LIST"
+}
+
+# NovaHide disables a module only once. If the user deletes the marker to
+# bring the module back, this record stops the next apply from undoing their
+# choice; Purge traces clears the record along with the rest.
+conflict_disabled_before() {
+    [ -f "$DISABLED_LIST" ] || return 1
+    awk -F'|' -v dir="$1" '
+        $1 == dir { found = 1 }
+        END { exit(found ? 0 : 1) }
+    ' "$DISABLED_LIST"
 }
 
 # Conflicts between the modules installed here leak root on their own: two
@@ -278,11 +302,13 @@ module_disable() {
 #
 # The scan is a report. It only disables a module when the user switched
 # AUTO_DISABLE_CONFLICTS on, only in a write pass, and only for the two
-# conflicts with an unambiguous loser; nothing is ever re-enabled, and the
-# disable marker is the user's to delete.
+# conflicts with an unambiguous loser; it disables each module once and never
+# re-enables anything. While the disabled module still runs this boot, the
+# report keeps saying so instead of claiming the conflict is gone.
 conflicts_scan() {
     mode=$1
     : > "$CONFLICTS_FILE"
+    boot_id=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)
 
     # One Zygisk at a time. Zygisk Next is installed when its data directory
     # exists; if no module directory of a known name is found, treat it as
@@ -296,16 +322,26 @@ conflicts_scan() {
         fi
     done
     zn_active=0
+    zn_pending=0
     if [ -d /data/adb/zygisksu ]; then
-        if [ -z "$zn_module" ] || module_dir_active "$zn_module"; then
+        if [ -z "$zn_module" ]; then
             zn_active=1
+        elif module_dir_active "$zn_module"; then
+            zn_active=1
+        elif conflict_marker_fresh "$zn_module"; then
+            zn_active=1
+            zn_pending=1
         fi
     fi
     if [ "$ZYGISK_STATE" = running ] && [ "$zn_active" = 1 ]; then
         if [ "$mode" = write ] && [ "$CFG_AUTO_DISABLE_CONFLICTS" = 1 ] &&
-            [ -n "$zn_module" ] && module_disable "$zn_module"; then
+            [ -n "$zn_module" ] && [ "$zn_pending" = 0 ] &&
+            ! conflict_disabled_before "$zn_module" && module_disable "$zn_module"; then
             add_conflict high "Zygisk twice" \
-                "built-in Zygisk and Zygisk Next both inject; Zygisk Next was disabled, back at the next boot if the marker is deleted"
+                "built-in Zygisk and Zygisk Next both inject; Zygisk Next was disabled, it still runs this boot and drops at the next one"
+        elif [ "$zn_pending" = 1 ]; then
+            add_conflict high "Zygisk twice" \
+                "built-in Zygisk and Zygisk Next both inject; Zygisk Next was disabled and still runs this boot, it is gone at the next one"
         else
             add_conflict high "Zygisk twice" \
                 "built-in Zygisk and Zygisk Next both inject; keep one, the other is the leak"
@@ -324,11 +360,24 @@ conflicts_scan() {
             "$pif_active fingerprint modules are active; they fight over the same props, keep one"
     fi
 
-    if module_dir_active /data/adb/modules/susfs_manager; then
+    sm_module=/data/adb/modules/susfs_manager
+    sm_active=0
+    sm_pending=0
+    if module_dir_active "$sm_module"; then
+        sm_active=1
+    elif [ -d "$sm_module" ] && conflict_marker_fresh "$sm_module"; then
+        sm_active=1
+        sm_pending=1
+    fi
+    if [ "$sm_active" = 1 ]; then
         if [ "$mode" = write ] && [ "$CFG_AUTO_DISABLE_CONFLICTS" = 1 ] &&
-            module_disable /data/adb/modules/susfs_manager; then
+            [ "$sm_pending" = 0 ] && ! conflict_disabled_before "$sm_module" &&
+            module_disable "$sm_module"; then
             add_conflict medium "SuSFS pack twice" \
-                "susfs_manager also applies a hide pack; it was disabled, back at the next boot if the marker is deleted"
+                "susfs_manager also applies a hide pack; it was disabled, it still runs this boot and drops at the next one"
+        elif [ "$sm_pending" = 1 ]; then
+            add_conflict medium "SuSFS pack twice" \
+                "susfs_manager also applies a hide pack; it was disabled and still runs this boot, it is gone at the next one"
         else
             add_conflict medium "SuSFS pack twice" \
                 "susfs_manager also applies a hide pack; the two packs can disagree on what stays mounted"
