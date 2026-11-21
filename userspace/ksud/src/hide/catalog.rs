@@ -25,7 +25,7 @@ pub struct HideEntry {
     pub why: &'static str,
 }
 
-const fn path(value: &'static str, min: HideProfile, why: &'static str) -> HideEntry {
+pub(super) const fn path(value: &'static str, min: HideProfile, why: &'static str) -> HideEntry {
     HideEntry { value, min, why }
 }
 

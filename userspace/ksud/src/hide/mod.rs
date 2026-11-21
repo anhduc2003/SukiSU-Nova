@@ -13,14 +13,17 @@
 //! ├── mod.rs      ← you are here: public re-exports only
 //! ├── profile.rs  ← HideProfile (off / light / balanced / aggressive)
 //! ├── catalog.rs  ← the curated entry table, one row per fingerprint
+//! ├── device.rs   ← vendor rows + the device names that select them
 //! └── apply.rs    ← applies a profile through `crate::susfs`
 //! ```
 //!
-//! The list is deliberately data-only: [`catalog::ENTRIES`] is the single
-//! place a path is added or removed, and [`apply`] never spells a path.
+//! The list is deliberately data-only: [`catalog::ENTRIES`] and
+//! [`device::PACKS`] are the only places a path is added or removed, and
+//! [`apply`] never spells a path.
 
 pub mod apply;
 pub mod catalog;
+pub mod device;
 pub mod profile;
 
 pub use apply::{apply, list, status};
@@ -31,32 +34,28 @@ use anyhow::Result;
 use crate::susfs_config;
 use crate::susfs_config::keys::KEY_HIDE_PROFILE;
 
-/// Profile applied when the config key is missing or empty.
-///
-/// Upgrading an existing install has no stored key, so the default is the
-/// level that covers the paths real detectors probe; `off` is the opt-out.
+/// Level a device with no detected vendor pack and no stored choice starts at.
 pub const DEFAULT_PROFILE: HideProfile = HideProfile::Balanced;
 
-/// Read the stored profile, falling back to [`DEFAULT_PROFILE`].
+/// Read the stored profile.
+///
+/// An explicit `hide_profile` always wins, so a user who picked `light` keeps
+/// it. With nothing stored the device decides — see [`default_profile`] — and
+/// a corrupt stored value logs a warning and falls back to that instead of
+/// quietly turning hiding off.
 pub fn configured_profile() -> Result<HideProfile> {
-    Ok(profile_or_default(&susfs_config::get(KEY_HIDE_PROFILE)?))
+    let raw = susfs_config::get(KEY_HIDE_PROFILE)?;
+    if raw.trim().is_empty() {
+        return Ok(default_profile());
+    }
+    Ok(HideProfile::parse(&raw).unwrap_or_else(|err| {
+        let fallback = default_profile();
+        log::warn!("hide: {err:#}, falling back to {}", fallback.as_str());
+        fallback
+    }))
 }
 
-/// Interpret a stored config value, falling back to [`DEFAULT_PROFILE`]
-/// when it is empty or unreadable.
-///
-/// The fallback is deliberately silent about a *missing* key (an install
-/// that predates the key) and loud about a *corrupt* one, so a typo in the
-/// config file shows up in the log instead of quietly disabling hiding.
-pub fn profile_or_default(raw: &str) -> HideProfile {
-    if raw.trim().is_empty() {
-        return DEFAULT_PROFILE;
-    }
-    HideProfile::parse(raw).unwrap_or_else(|err| {
-        log::warn!(
-            "hide: {err:#}, falling back to {}",
-            DEFAULT_PROFILE.as_str()
-        );
-        DEFAULT_PROFILE
-    })
+/// The automatic level: the detected pack's, else [`DEFAULT_PROFILE`].
+pub fn default_profile() -> HideProfile {
+    device::detect().map_or(DEFAULT_PROFILE, |matched| matched.pack.default_profile)
 }
