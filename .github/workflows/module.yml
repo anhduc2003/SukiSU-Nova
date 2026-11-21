@@ -1,0 +1,79 @@
+name: Build NovaHide module
+
+# Builds the flashable module zip from `module/` and publishes it as the
+# `novahide` artifact. Like the other workflows here this targets the
+# self-hosted runner: the checkout and the artifact go through plain scripts
+# and ${CI_ARTIFACT_ROOT}, never through a marketplace action.
+#
+# The behavioural harness (module/tests/run-tests.sh) is not run here: it needs
+# root and a mount namespace, which the runner containers do not grant. It runs
+# on a workstation with `sudo unshare -m sh module/tests/run-tests.sh`.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'main'
+      - 'dev'
+    paths:
+      - 'module/**'
+      - 'scripts/build-module.sh'
+      - '.github/workflows/module.yml'
+  pull_request:
+    branches:
+      - 'main'
+      - 'dev'
+    paths:
+      - 'module/**'
+      - 'scripts/build-module.sh'
+      - '.github/workflows/module.yml'
+
+jobs:
+  module:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eux
+          remote="https://git.zako.shirkneko.top:20004"
+          mirror="/ci/repo-cache/${GITHUB_REPOSITORY}.git"
+          mkdir -p "$(dirname "$mirror")"
+          if [ ! -d "$mirror" ]; then
+            set +x
+            git -c "http.${remote}/.extraHeader=Authorization: token ${TOKEN}" \
+              clone -q --mirror "${remote}/${GITHUB_REPOSITORY}.git" "$mirror"
+            set -x
+          elif command -v flock >/dev/null 2>&1; then
+            (
+              flock 9
+              git --git-dir="$mirror" fetch -q --prune origin \
+                "+refs/heads/*:refs/heads/*" "+refs/tags/*:refs/tags/*"
+            ) 9>"${mirror}.lock"
+          else
+            git --git-dir="$mirror" fetch -q --prune origin \
+              "+refs/heads/*:refs/heads/*" "+refs/tags/*:refs/tags/*"
+          fi
+          git clone -q --shared --no-checkout "$mirror" .
+          git checkout -q "${GITHUB_SHA}"
+
+      - name: ShellCheck
+        run: |
+          set -eux
+          mapfile -t files < <(git ls-files '*.sh' | grep -E '^(module/|scripts/build-module\.sh)' || true)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "no module scripts to check"
+            exit 0
+          fi
+          printf 'checking %d files\n' "${#files[@]}"
+          shellcheck -x "${files[@]}"
+
+      - name: Build
+        run: bash scripts/build-module.sh
+
+      - name: Publish artifact
+        run: |
+          set -eux
+          . .github/scripts/ci/common.sh
+          ci_artifact_put novahide out/*.zip
+          ls -la "$(ci_artifact_path novahide)"
