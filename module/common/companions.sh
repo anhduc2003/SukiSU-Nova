@@ -296,6 +296,27 @@ conflict_disabled_before() {
     ' "$DISABLED_LIST"
 }
 
+# Purge prunes the record instead of deleting it: an entry whose marker is
+# gone describes nothing anymore, but a marker still on disk means the module
+# only drops at the next boot, and the report has to keep saying so.
+disabled_list_prune() {
+    [ -f "$DISABLED_LIST" ] || return 0
+    tmp=$DISABLED_LIST.tmp
+    : > "$tmp" || return 0
+    while IFS='|' read -r dir boot; do
+        [ -n "$dir" ] || continue
+        if [ -f "$dir/disable" ]; then
+            printf '%s|%s\n' "$dir" "$boot" >> "$tmp"
+        fi
+    done < "$DISABLED_LIST"
+    if mv -f "$tmp" "$DISABLED_LIST" 2>/dev/null; then
+        chmod 0644 "$DISABLED_LIST" 2>/dev/null
+        chown 0:0 "$DISABLED_LIST" 2>/dev/null
+    else
+        rm -f "$tmp"
+    fi
+}
+
 # Conflicts between the modules installed here leak root on their own: two
 # Zygisk stacks inject the same processes, two fingerprint modules fight over
 # the same props, a second hide pack undoes this one's registrations.

@@ -419,6 +419,10 @@ assert_contains "the disabled module is logged" /data/adb/novahide/novahide.log 
 run_script action.sh action-conflicts-pending json
 assert_contains "the conflict stays reported while the module still runs" "$OUT/action-conflicts-pending.log" '"name":"Zygisk twice"'
 assert_contains "the pending disable says so" "$OUT/action-conflicts-pending.log" "still runs this boot"
+run_script action.sh action-conflicts-purge purge
+assert_ok test -f /data/adb/novahide/disabled.list
+run_script action.sh action-conflicts-kept json
+assert_contains "the pending conflict survives purge" "$OUT/action-conflicts-kept.log" "still runs this boot"
 rm -f /data/adb/modules/zygisknext/disable
 run_script action.sh action-conflicts-undo apply balanced
 assert_ok test ! -f /data/adb/modules/zygisknext/disable

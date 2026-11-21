@@ -128,8 +128,9 @@ SUSFS_KERNEL_LOG=0
 # NovaHide names for a fixable conflict; that takes effect at the next boot.
 # NovaHide disables each module once and records it in
 # /data/adb/novahide/disabled.list: delete the module's disable marker to
-# bring it back, and NovaHide stands down for it. The record is a trace like
-# the rest; Purge traces clears it.
+# bring it back, and NovaHide stands down for it. The record is a trace;
+# Purge traces prunes it to the modules whose marker is still on disk, so a
+# module disabled this boot keeps being reported until the reboot.
 AUTO_DISABLE_CONFLICTS=0
 
 # Banking apps this module does not know, space or comma separated. The list is

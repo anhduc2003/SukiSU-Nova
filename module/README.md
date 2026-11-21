@@ -121,10 +121,11 @@ boot: the module still runs until the manager honours the marker.
 NovaHide disables each module once and records it in
 `/data/adb/novahide/disabled.list`. Delete a module's disable marker to bring
 it back and NovaHide stands down — a later apply will not write the marker
-again. The record is a trace like the rest: Purge traces clears it, after
-which NovaHide may act on the same conflict again. Which of the two Zygisk
-stacks to keep is always yours, so re-check the WebUI after switching the
-flag on.
+again. The record is a trace: Purge traces prunes it to the modules whose
+marker is still on disk, which keeps a module disabled this boot reported
+until the reboot and lets NovaHide act on the same conflict again afterwards.
+Which of the two Zygisk stacks to keep is always yours, so re-check the
+WebUI after switching the flag on.
 
 ## Vietnamese banking apps
 
