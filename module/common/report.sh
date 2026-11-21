@@ -124,6 +124,10 @@ verdict_strong() {
 
 hide_line() {
     if [ "$RUN_MODE" = apply ]; then
+        if [ "$PROFILE_USED" = off ]; then
+            printf 'off: nothing registered this pass (earlier hides clear at the next reboot)'
+            return 0
+        fi
         printf '%s applied, %s skipped' "$HIDE_APPLIED" "$HIDE_SKIPPED"
         return 0
     fi
@@ -178,6 +182,8 @@ report_text() {
     printf '%-12s %s\n' "zygisk" "$ZYGISK_STATE"
     printf '%s\n' "companions"
     companions_text
+    printf '%s\n' "banking"
+    banking_text
     printf '%s\n' "verdict"
     printf '  %-7s %s\n' "BASIC" "$(verdict_basic)"
     printf '  %-7s %s\n' "DEVICE" "$(verdict_device)"
@@ -223,6 +229,7 @@ report_json() {
     printf '"mountHiding":%s,"maps":%s,"bootconfig":"%s","zygisk":"%s",' \
         "$mount_flag" "${MAPS_HIDDEN:-0}" "$(json_escape "$BOOTCONFIG_STATE")" "$(json_escape "$ZYGISK_STATE")"
     printf '"companions":%s,' "$(companions_json)"
+    printf '"banking":%s,' "$(banking_json)"
     printf '"verdict":{"basic":"%s","device":"%s","strong":"%s"},' \
         "$(json_escape "$(verdict_basic)")" "$(json_escape "$(verdict_device)")" \
         "$(json_escape "$(verdict_strong)")"

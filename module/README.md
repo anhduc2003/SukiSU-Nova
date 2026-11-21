@@ -16,6 +16,7 @@ It bundles nobody else's binaries. It drives what is already on the device.
 | Mount hiding | Hides SUS mounts from every non-su process | `ksud susfs hide-sus-mnts-for-non-su-procs` |
 | Kernel log | Turns SuSFS's own kernel logging off, so dmesg carries no hide records | `ksud susfs enable-log` |
 | Self-hiding | Registers this module's directory and data dir, never mounts anything (`skip_mount`) | `ksud susfs add-sus-path` |
+| Banking audit | Names the installed Vietnamese banking apps and what is still visible to them | `pm`, `settings`, `getenforce` |
 | Map hiding | Hides Zygisk payloads from `/proc/<pid>/maps` | `ksud susfs add-sus-map` |
 | Boot properties | Forces verified boot, warranty and debuggable properties to the stock values | `ksud resetprop` |
 | Bootconfig | Serves a sanitised `/proc/bootconfig` | `ksud susfs set-cmdline-or-bootconfig` |
@@ -69,8 +70,10 @@ or re-add a path with a different meaning.
 | `SUSFS_KERNEL_LOG` | `0` | `1` turns SuSFS kernel logging back on for debugging. |
 
 `PROFILE` controls the SuSFS side: the path packs, the extra self paths, mount
-hiding, map hiding, the bootconfig and the kernel log. `off` leaves all of it
-alone. Properties, kernel features and companion modules have their own
+hiding, map hiding, the bootconfig and the kernel log. `off` registers nothing
+new; hides an earlier boot or apply already registered stay until the next
+reboot, because SuSFS has no command that removes a path, a map or mount
+hiding. Properties, kernel features and companion modules have their own
 switches, so `PROFILE=off` still sanitises the bootloader properties — that part
 is what most detectors read first.
 
@@ -89,6 +92,35 @@ is what most detectors read first.
   itself (`/data/system/nyazygisk`) is deliberately **not** hidden as a path:
   injected processes read their config from it, and hiding it would break the
   injection it is supposed to conceal.
+
+## Vietnamese banking apps
+
+Root hiding applies to every non-su process, so a banking app is covered
+whether or not this module knows its package name. What the list buys is a
+readiness line that names the app and what it can still see:
+
+```
+banking
+  installed        Vietcombank, MB Bank
+  still visible    developer options on; manager app visible (com.sukisu.nova)
+```
+
+The built-in list covers Vietcombank, Techcombank, MB Bank, BIDV (Direct and
+Smart OTP), VietinBank iPay, VPBank NEO and TPBank Mobile, each checked against
+its Play Store listing. Add others with `EXTRA_BANKING_APPS` in the config.
+
+The audit reports, and never changes, these vectors:
+
+- developer options, USB debugging, wireless debugging, mock location
+- SELinux permissive
+- Frida artifacts under `/data/local/tmp`
+- legacy Xposed
+- the manager app itself, which PackageManager lists like any other app
+
+The last one has a real fix: repackage the manager under a random name (the
+manager's own build supports it), or hide it with HideMyApplist. Turning off
+developer options and debugging is the user's call, and the module does not do
+it behind their back.
 
 ## The verdict, honestly
 

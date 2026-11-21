@@ -16,6 +16,13 @@ detect_all
 log_info "post-fs-data: start ($(module_version), $DEVICE_LABEL)"
 
 apply_early
+
+# Before the pack, so the registrations this pass makes are not logged.
+case "$CFG_PROFILE" in
+    off) ;;
+    *) apply_susfs_log ;;
+esac
+
 apply_hide ""
 
 log_info "post-fs-data: done"

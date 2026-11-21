@@ -156,6 +156,10 @@
                 : 'unavailable'],
             ['features', data.features || '—'],
             ['zygisk', data.zygisk || '—'],
+            ['banking', bankingApps(data.banking)],
+            ['bank risk', (data.banking && data.banking.risks)
+                ? data.banking.risks
+                : "nothing beyond the app's own checks"],
             ['log', data.log || '—']
         ].forEach(function (pair) {
             var dt = document.createElement('dt');
@@ -184,6 +188,13 @@
             li.appendChild(note);
             list.appendChild(li);
         });
+    }
+
+    function bankingApps(banking) {
+        if (!banking || !banking.apps || !banking.apps.length) {
+            return 'no known Vietnamese banking app';
+        }
+        return banking.apps.join(', ');
     }
 
     function stateClass(state) {

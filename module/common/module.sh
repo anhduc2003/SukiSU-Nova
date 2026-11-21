@@ -11,5 +11,6 @@
 . "$MODDIR/common/detect.sh"
 . "$MODDIR/common/features.sh"
 . "$MODDIR/common/companions.sh"
+. "$MODDIR/common/banking.sh"
 . "$MODDIR/common/report.sh"
 . "$MODDIR/common/apply.sh"

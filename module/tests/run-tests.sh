@@ -119,6 +119,26 @@ value=$(grep "^$1=" /data/adb/props 2>/dev/null | tail -n 1 | cut -d= -f2-)
 exit 0
 EOF
 
+cat > "$STUB_BIN/pm" <<'EOF'
+#!/bin/sh
+[ "$1" = list ] || exit 0
+printf 'package:com.vcb\npackage:com.mbmobile\npackage:com.example.extra\npackage:com.sukisu.nova\npackage:com.android.settings\n'
+EOF
+
+cat > "$STUB_BIN/settings" <<'EOF'
+#!/bin/sh
+case "$2 $3" in
+    'global development_settings_enabled') printf '1\n' ;;
+    'global adb_enabled') printf '0\n' ;;
+    *) printf 'null\n' ;;
+esac
+EOF
+
+cat > "$STUB_BIN/getenforce" <<'EOF'
+#!/bin/sh
+printf 'Enforcing\n'
+EOF
+
 cat > /data/adb/ksud <<'EOF'
 #!/bin/sh
 printf '%s\n' "$*" >> /data/adb/ksud.calls
@@ -211,7 +231,7 @@ esac
 exit 0
 EOF
 
-chmod 0755 "$STUB_BIN/getprop" /data/adb/ksud
+chmod 0755 "$STUB_BIN/getprop" "$STUB_BIN/pm" "$STUB_BIN/settings" "$STUB_BIN/getenforce" /data/adb/ksud
 
 # Companion modules: TrickyStore with one target and one mode suffix, a
 # PlayIntegrityFix install, and a Zygisk Next install that conflicts with the
@@ -286,6 +306,10 @@ assert_ok test -f /data/adb/novahide/status.txt
 assert_contains "the report has a verdict" /data/adb/novahide/status.txt "BASIC"
 assert_contains "the report names the device" /data/adb/novahide/status.txt "OnePlus Ace 5"
 assert_contains "the description carries the summary" "$MODDIR/module.prop" "description=NovaHide v1.0.0 | aggressive | 12 hidden"
+assert_contains "the report names an installed bank" /data/adb/novahide/status.txt "Vietcombank"
+assert_contains "the report names the second bank" /data/adb/novahide/status.txt "MB Bank"
+assert_contains "developer options are reported" /data/adb/novahide/status.txt "developer options on"
+assert_contains "the manager package is reported" /data/adb/novahide/status.txt "manager app visible"
 assert_contains "the report says mounts are hidden" /data/adb/novahide/status.txt "hidden from non-su processes"
 
 echo "== bootconfig"
@@ -321,6 +345,8 @@ assert_contains "the JSON reports the profile" "$OUT/action-json.log" '"profile"
 assert_contains "the JSON reports SuSFS" "$OUT/action-json.log" '"available":true'
 assert_contains "the JSON carries the recorded apply" "$OUT/action-json.log" '"recorded":true'
 assert_contains "the JSON carries the catalog size" "$OUT/action-json.log" '"entries":12'
+assert_contains "the JSON carries the banking section" "$OUT/action-json.log" '"banking":{"count":2'
+assert_contains "the JSON carries the manager package" "$OUT/action-json.log" 'com.sukisu.nova'
 run_script action.sh action-status status
 assert_eq "action status exits 0" "$?" "0"
 assert_contains "status prints the verdict" "$OUT/action-status.log" "STRONG"
@@ -361,6 +387,13 @@ sed -i 's/^CONFIGURE_COMPANIONS=1$/CONFIGURE_COMPANIONS=0/' /data/adb/novahide/c
 NOVAHIDE_TEST_KSUD_INTEGRATES=1 run_script action.sh action-optout apply balanced
 assert_eq "the opt-out run exits 0" "$?" "0"
 assert_not_contains "the opt-out keeps target.txt untouched" /data/adb/tricky_store/target.txt "com.google.android.gms"
+mv -f /data/adb/novahide/config.conf.keep /data/adb/novahide/config.conf
+
+echo "== banking extras"
+cp -f /data/adb/novahide/config.conf /data/adb/novahide/config.conf.keep
+sed -i 's/^EXTRA_BANKING_APPS=.*$/EXTRA_BANKING_APPS=com.example.extra/' /data/adb/novahide/config.conf
+run_script action.sh action-banking status
+assert_contains "an extra banking package is reported" "$OUT/action-banking.log" "com.example.extra"
 mv -f /data/adb/novahide/config.conf.keep /data/adb/novahide/config.conf
 
 echo "== disabled fingerprint"

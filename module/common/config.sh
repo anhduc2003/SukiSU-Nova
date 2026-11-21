@@ -15,6 +15,7 @@ cfg_defaults() {
     CFG_SPOOF_BOOTCONFIG=1
     CFG_STATUS_IN_DESCRIPTION=1
     CFG_SUSFS_KERNEL_LOG=0
+    CFG_EXTRA_BANKING_APPS=
 }
 
 cfg_load() {
@@ -33,6 +34,7 @@ cfg_load() {
                 SPOOF_BOOTCONFIG) CFG_SPOOF_BOOTCONFIG=$value ;;
                 STATUS_IN_DESCRIPTION) CFG_STATUS_IN_DESCRIPTION=$value ;;
                 SUSFS_KERNEL_LOG) CFG_SUSFS_KERNEL_LOG=$value ;;
+                EXTRA_BANKING_APPS) CFG_EXTRA_BANKING_APPS=$value ;;
             esac
         done < "$CONFIG_FILE"
     fi
@@ -56,6 +58,9 @@ cfg_validate() {
     CFG_SPOOF_BOOTCONFIG=$(cfg_flag "$CFG_SPOOF_BOOTCONFIG" SPOOF_BOOTCONFIG)
     CFG_STATUS_IN_DESCRIPTION=$(cfg_flag "$CFG_STATUS_IN_DESCRIPTION" STATUS_IN_DESCRIPTION)
     CFG_SUSFS_KERNEL_LOG=$(cfg_flag "$CFG_SUSFS_KERNEL_LOG" SUSFS_KERNEL_LOG)
+    # Only package-name characters survive, so a stray quote in the file
+    # cannot turn into an argument to anything.
+    CFG_EXTRA_BANKING_APPS=$(printf '%s' "$CFG_EXTRA_BANKING_APPS" | tr ',' ' ' | tr -cd 'A-Za-z0-9._ \n')
 }
 
 cfg_flag() {
@@ -111,6 +116,10 @@ STATUS_IN_DESCRIPTION=1
 # SuSFS logs every operation to the kernel log, where a process that can read
 # dmesg sees the hides being registered. 1 turns the log back on for debugging.
 SUSFS_KERNEL_LOG=0
+
+# Banking apps this module does not know, space or comma separated. The list is
+# only used by the report: hiding applies to every app either way.
+EXTRA_BANKING_APPS=
 EOF
     chmod 0644 "$CONFIG_FILE"
     chown 0:0 "$CONFIG_FILE" 2>/dev/null

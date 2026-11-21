@@ -39,13 +39,20 @@ apply_all() {
 
     # Hide first, then the rest: a detector that starts while this runs should
     # already see the paths gone.
+    # Turn the kernel log off before anything is registered, so this boot's own
+    # hides are not the records it then suppresses.
+    case "${requested_profile:-$CFG_PROFILE}" in
+        off) ;;
+        *) apply_susfs_log ;;
+    esac
+
     apply_hide "$requested_profile"
 
-    # `off` means no SuSFS state at all, including this module's own paths: a
-    # user who turned path hiding off did not ask for a quiet corner of it to
-    # stay on.
+    # `off` registers nothing in this pass. It cannot unregister what an earlier
+    # pass added: SuSFS has no remove for a path, a map or mount hiding, so those
+    # stay until the next reboot.
     if [ "$PROFILE_USED" = off ]; then
-        log_info "susfs: profile off, no paths, mounts, maps or bootconfig"
+        log_info "susfs: profile off, nothing registered this pass (earlier hides clear at the next reboot)"
     else
         apply_extra_paths
         apply_mount_hiding
@@ -55,7 +62,6 @@ apply_all() {
         if [ "$CFG_SPOOF_BOOTCONFIG" = 1 ]; then
             spoof_bootconfig
         fi
-        apply_susfs_log
     fi
     if [ "$CFG_CONFIGURE_COMPANIONS" = 1 ]; then
         collect_companions write
@@ -66,6 +72,7 @@ apply_all() {
     # Read back rather than assume: the verdict is built from what the device
     # actually reports after the writes, not from what was requested.
     PROPS_VERIFIEDBOOT=$(prop_get ro.boot.verifiedbootstate)
+    banking_audit
 
     state_write
     write_status
@@ -368,4 +375,5 @@ collect_live() {
         BOOTCONFIG_STATE="not configured"
     fi
     collect_companions read
+    banking_audit
 }
