@@ -32,7 +32,8 @@ object SuSFSBackupManager {
             SuSFSConfig.KEY_ENABLE_HIDE_BL to getEnableHideBlInternal(),
             SuSFSConfig.KEY_ENABLE_CLEANUP_RESIDUE to getEnableCleanupResidueInternal(),
             SuSFSConfig.KEY_ENABLE_AVC_LOG_SPOOFING to getEnableAvcLogSpoofingInternal(),
-            SuSFSConfig.KEY_CMDLINE_OR_BOOTCONFIG_PATH to getCmdlineOrBootconfigPathInternal()
+            SuSFSConfig.KEY_CMDLINE_OR_BOOTCONFIG_PATH to getCmdlineOrBootconfigPathInternal(),
+            SuSFSConfig.KEY_HIDE_PROFILE to SuSFSConfig.get(SuSFSConfig.KEY_HIDE_PROFILE)
         )
     }
 

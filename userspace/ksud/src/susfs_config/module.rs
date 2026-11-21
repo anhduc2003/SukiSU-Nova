@@ -9,9 +9,9 @@ use anyhow::Result;
 use super::keys::{
     KEY_ADD_KSTAT_PATHS, KEY_BUILD_TIME_VALUE, KEY_CMDLINE_OR_BOOTCONFIG_PATH,
     KEY_ENABLE_AVC_LOG_SPOOFING, KEY_ENABLE_CLEANUP_RESIDUE, KEY_ENABLE_HIDE_BL, KEY_ENABLE_LOG,
-    KEY_EXECUTE_IN_POST_FS_DATA, KEY_HIDE_SUS_MOUNTS_FOR_ALL_PROCS, KEY_KSTAT_CONFIGS,
-    KEY_PRIORITY_UID_FILTER, KEY_SUS_LOOP_PATHS, KEY_SUS_MAPS, KEY_SUS_PATH_UID_FILTER,
-    KEY_SUS_PATHS, KEY_UNAME_VALUE,
+    KEY_EXECUTE_IN_POST_FS_DATA, KEY_HIDE_PROFILE, KEY_HIDE_SUS_MOUNTS_FOR_ALL_PROCS,
+    KEY_KSTAT_CONFIGS, KEY_PRIORITY_UID_FILTER, KEY_SUS_LOOP_PATHS, KEY_SUS_MAPS,
+    KEY_SUS_PATH_UID_FILTER, KEY_SUS_PATHS, KEY_UNAME_VALUE,
 };
 use super::store::load_config;
 
@@ -76,6 +76,7 @@ pub fn load_module_config() -> Result<ModuleConfig> {
         enable_cleanup_residue: get(KEY_ENABLE_CLEANUP_RESIDUE) == "true",
         enable_avc_log_spoofing: get(KEY_ENABLE_AVC_LOG_SPOOFING) == "true",
         cmdline_or_bootconfig_path: get(KEY_CMDLINE_OR_BOOTCONFIG_PATH),
+        hide_profile: get(KEY_HIDE_PROFILE),
     })
 }
 
@@ -100,4 +101,5 @@ pub struct ModuleConfig {
     pub enable_cleanup_residue: bool,
     pub enable_avc_log_spoofing: bool,
     pub cmdline_or_bootconfig_path: String,
+    pub hide_profile: String,
 }

@@ -7,6 +7,7 @@
 
 use std::fmt::Write as FmtWrite;
 
+use crate::hide::HideProfile;
 use crate::susfs_module::consts::{DEFAULT_BUILD_TIME, DEFAULT_UNAME, shell_quote};
 use crate::susfs_module::scripts::{cleanup, hide_bl, prelude};
 
@@ -52,6 +53,7 @@ pub fn service(
     build_time_value: &str,
     execute_in_post_fs_data: bool,
     enable_log: bool,
+    hide_profile: HideProfile,
     enable_hide_bl: bool,
     enable_cleanup_residue: bool,
 ) -> String {
@@ -182,6 +184,21 @@ pub fn service(
         "echo \"$(get_current_time): 日志功能设置为: {}\" >> \"$LOG_FILE\"\n",
         if enable_log { "启用" } else { "禁用" }
     );
+
+    // 内置隐藏配置
+    if hide_profile != HideProfile::Off {
+        s.push_str("\n# 应用内置隐藏配置\n");
+        let _ = writeln!(
+            s,
+            "/data/adb/ksud hide apply {} >> \"$LOG_FILE\" 2>&1",
+            shell_quote(hide_profile.as_str())
+        );
+        let _ = writeln!(
+            s,
+            "echo \"$(get_current_time): 内置隐藏配置已应用: {}\" >> \"$LOG_FILE\"\n",
+            hide_profile.as_str()
+        );
+    }
 
     // hide bl
     if enable_hide_bl {
