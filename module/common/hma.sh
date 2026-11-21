@@ -197,7 +197,7 @@ hma_configure() {
     chmod 0644 "$file" 2>/dev/null
     chown 0:0 "$file" 2>/dev/null
     HMA_NOTE="the NovaHide template is applied"
-    log_info "hma: template applied to $HMA_CONFIGURED new app(s); the daemon reloads it live"
+    log_info "hma: template covers $HMA_CONFIGURED installed app(s); the daemon reloads it live"
 }
 
 # Read-only peek for the status report.
