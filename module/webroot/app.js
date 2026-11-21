@@ -65,7 +65,7 @@
     }
 
     function setBusy(busy) {
-        ['apply', 'refresh', 'log', 'purge', 'reset', 'keybox'].forEach(function (id) {
+        ['apply', 'refresh', 'log', 'purge', 'reset', 'keybox', 'hma-on', 'hma-off'].forEach(function (id) {
             var el = $(id);
             if (el) {
                 el.disabled = busy;
@@ -387,6 +387,25 @@
         }
     }
 
+    // Auto-setup is persistent: enabling writes AUTO_CONFIGURE_HMA=1 so every
+    // later apply (boot included) re-runs the merge, then sets it up at once.
+    async function hmaSetup(mode) {
+        setBusy(true);
+        setNotice('');
+        try {
+            var res = await run(actionCommand('hma ' + mode), 60000);
+            showOutput(res.out || res.err);
+            if (res.code !== 0) {
+                setNotice('The HMA setup exited ' + res.code + '. See the output below.');
+            }
+            await refresh();
+        } catch (err) {
+            setNotice('The HMA setup failed: ' + err.message);
+        } finally {
+            setBusy(false);
+        }
+    }
+
     function init() {
         moduleDir = resolveModuleDir();
         $('apply').addEventListener('click', applyProfile);
@@ -398,6 +417,12 @@
             $('keybox-file').click();
         });
         $('keybox-file').addEventListener('change', uploadKeybox);
+        $('hma-on').addEventListener('click', function () {
+            hmaSetup('on');
+        });
+        $('hma-off').addEventListener('click', function () {
+            hmaSetup('off');
+        });
 
         if (!bridge()) {
             setNotice('Open this page from NovaHide in SukiSU Nova: the module action or the module WebUI.');

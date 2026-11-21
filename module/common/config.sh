@@ -16,8 +16,10 @@ cfg_defaults() {
     CFG_STATUS_IN_DESCRIPTION=1
     CFG_SUSFS_KERNEL_LOG=0
     CFG_AUTO_DISABLE_CONFLICTS=0
+    CFG_AUTO_CONFIGURE_HMA=0
     CFG_UNAME_RELEASE=
     CFG_UNAME_VERSION=
+    CFG_HMA_TARGET_APPS=
     CFG_EXTRA_BANKING_APPS=
 }
 
@@ -40,6 +42,8 @@ cfg_load() {
                 STATUS_IN_DESCRIPTION) CFG_STATUS_IN_DESCRIPTION=$value ;;
                 SUSFS_KERNEL_LOG) CFG_SUSFS_KERNEL_LOG=$value ;;
                 AUTO_DISABLE_CONFLICTS) CFG_AUTO_DISABLE_CONFLICTS=$value ;;
+                AUTO_CONFIGURE_HMA) CFG_AUTO_CONFIGURE_HMA=$value ;;
+                HMA_TARGET_APPS) CFG_HMA_TARGET_APPS=$value ;;
                 UNAME_RELEASE) CFG_UNAME_RELEASE=$value ;;
                 UNAME_VERSION) CFG_UNAME_VERSION=$value ;;
                 EXTRA_BANKING_APPS) CFG_EXTRA_BANKING_APPS=$value ;;
@@ -67,6 +71,8 @@ cfg_validate() {
     CFG_STATUS_IN_DESCRIPTION=$(cfg_flag "$CFG_STATUS_IN_DESCRIPTION" STATUS_IN_DESCRIPTION)
     CFG_SUSFS_KERNEL_LOG=$(cfg_flag "$CFG_SUSFS_KERNEL_LOG" SUSFS_KERNEL_LOG)
     CFG_AUTO_DISABLE_CONFLICTS=$(cfg_flag "$CFG_AUTO_DISABLE_CONFLICTS" AUTO_DISABLE_CONFLICTS)
+    CFG_AUTO_CONFIGURE_HMA=$(cfg_flag "$CFG_AUTO_CONFIGURE_HMA" AUTO_CONFIGURE_HMA)
+    CFG_HMA_TARGET_APPS=$(printf '%s' "$CFG_HMA_TARGET_APPS" | tr ',' ' ' | tr -cd 'A-Za-z0-9._ \n')
     # Kernel strings are short and printable; anything else in the value is a
     # typo or an injection attempt, and both fail the same way. A character
     # the set drops is logged, so a silently mangled stock string cannot be
@@ -148,6 +154,16 @@ SUSFS_KERNEL_LOG=0
 # Purge traces prunes it to the modules whose marker is still on disk, so a
 # module disabled this boot keeps being reported until the reboot.
 AUTO_DISABLE_CONFLICTS=0
+
+# Hand the HMA-OSS integration over to NovaHide: on every apply it writes a
+# template that hides the manager and hooking apps, and applies it to the
+# installed banks and the packages in HMA_TARGET_APPS. HMA's daemon picks
+# the config change up live. 0 leaves HMA alone.
+AUTO_CONFIGURE_HMA=0
+
+# Apps the HMA setup should cover beyond the known banks, space or comma
+# separated, same as EXTRA_BANKING_APPS.
+HMA_TARGET_APPS=
 
 # Detector apps read the kernel string (`uname`, /proc/version), and a custom
 # release like a kernel fork's name is a tell SuSFS can hide. Put the stock

@@ -18,6 +18,9 @@ MAPS_HIDDEN=0
 MOUNT_HIDING=
 BOOTCONFIG_STATE=skipped
 UNAME_STATE=off
+HMA_PRESENT=0
+HMA_CONFIGURED=0
+HMA_NOTE=
 PROPS_VERIFIEDBOOT=
 
 json_escape() {
@@ -55,15 +58,27 @@ profile_source_from_status() {
 }
 
 # What the last apply actually registered, so a status run can report a
-# verified number instead of the catalogue size.
+# verified number instead of the catalogue size. The uname record carries
+# the boot id: the kernel string resets at boot, so a stale claim from an
+# older boot says nothing about the kernel now.
 state_write() {
+    uname_record=${UNAME_STATE:-off}
+    if [ "$uname_record" = off ]; then
+        # spoof_uname was skipped this pass (profile off): the kernel keeps
+        # serving an earlier string from this boot, so keep that record.
+        if uname_record_boot_matches "$(state_get uname)"; then
+            uname_record=$(state_get uname)
+        fi
+    elif [ "$uname_record" = spoofed ] || [ "$uname_record" = stale ]; then
+        uname_record="$uname_record:$(current_boot_id)"
+    fi
     {
         printf 'time=%s\n' "$(date '+%Y-%m-%d %H:%M:%S')"
         printf 'profile=%s\n' "$PROFILE_USED"
         printf 'applied=%s\n' "${HIDE_APPLIED:-0}"
         printf 'skipped=%s\n' "${HIDE_SKIPPED:-0}"
         printf 'verifiedboot=%s\n' "${PROPS_VERIFIEDBOOT:-}"
-        printf 'uname=%s\n' "${UNAME_STATE:-}"
+        printf 'uname=%s\n' "${uname_record:-off}"
     } > "$STATE_FILE.tmp" 2>/dev/null &&
         mv -f "$STATE_FILE.tmp" "$STATE_FILE" 2>/dev/null
     chmod 0644 "$STATE_FILE" 2>/dev/null
@@ -157,6 +172,24 @@ props_line() {
     fi
 }
 
+# The state of a spoof lives and dies with one boot: after a reboot the
+# kernel string is the real one again until the boot pass re-applies it, so
+# the record carries the boot id and a stale claim only stands while the
+# same boot is running.
+current_boot_id() {
+    cat /proc/sys/kernel/random/boot_id 2>/dev/null
+}
+
+uname_record_boot_matches() {
+    recorded=$1
+    case "$recorded" in
+        'spoofed:'*|'stale:'*)
+            [ "${recorded#*:}" = "$(current_boot_id)" ]
+            ;;
+        *) return 1 ;;
+    esac
+}
+
 # The kernel string is held in kernel memory, and SuSFS cannot report it
 # back. A status run says what the config asks for and what the last apply
 # recorded; when the values are cleared, the last spoofed string stays
@@ -175,15 +208,12 @@ uname_line() {
     esac
     if [ "$configured" != 1 ]; then
         # The kernel serves whatever string it was last given until the next
-        # boot, whether the config was cleared before or after that apply.
-        case "$(state_get uname)" in
-            stale|spoofed)
-                printf 'not configured; the kernel serves the last spoofed string until reboot'
-                ;;
-            *)
-                printf 'not configured'
-                ;;
-        esac
+        # boot; the record says so only while that boot is still running.
+        if uname_record_boot_matches "$(state_get uname)"; then
+            printf 'not configured; the kernel serves the last spoofed string until reboot'
+        else
+            printf 'not configured'
+        fi
         return 0
     fi
     if [ "$RUN_MODE" = apply ]; then
@@ -191,12 +221,16 @@ uname_line() {
         printf 'configured but not applied this pass (profile off)'
         return 0
     fi
+    if [ "$PROFILE_USED" = off ]; then
+        printf 'configured but not applied this pass (profile off)'
+        return 0
+    fi
     # A status run cannot ask the kernel, so the last apply's outcome answers.
     case "$(state_get uname)" in
-        spoofed) printf 'configured; applied by the last apply pass' ;;
-        refused) printf 'configured; the kernel refused the string' ;;
-        unavailable) printf 'configured; no SuSFS on this kernel' ;;
-        partial) printf 'configured; set both values in the config' ;;
+        'spoofed:'*) printf 'configured; applied by the last apply pass' ;;
+        'refused') printf 'configured; the kernel refused the string' ;;
+        'unavailable') printf 'configured; no SuSFS on this kernel' ;;
+        'partial') printf 'configured; set both values in the config' ;;
         *) printf 'configured; not applied yet' ;;
     esac
 }
@@ -227,6 +261,8 @@ report_text() {
     printf '%-12s %s\n' "bootconfig" "$BOOTCONFIG_STATE"
     printf '%-12s %s\n' "uname" "$(uname_line)"
     printf '%-12s %s\n' "zygisk" "$ZYGISK_STATE"
+    printf '%s\n' "hma-oss"
+    hma_text
     printf '%s\n' "companions"
     companions_text
     printf '%s\n' "module conflicts"
@@ -281,6 +317,7 @@ report_json() {
     printf '"companions":%s,' "$(companions_json)"
     printf '"conflicts":%s,' "$(conflicts_json)"
     printf '"banking":%s,' "$(banking_json)"
+    printf '"hma":%s,' "$(hma_json)"
     printf '"verdict":{"basic":"%s","device":"%s","strong":"%s"},' \
         "$(json_escape "$(verdict_basic)")" "$(json_escape "$(verdict_device)")" \
         "$(json_escape "$(verdict_strong)")"

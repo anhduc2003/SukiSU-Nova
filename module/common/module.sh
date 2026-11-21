@@ -12,5 +12,6 @@
 . "$MODDIR/common/features.sh"
 . "$MODDIR/common/companions.sh"
 . "$MODDIR/common/banking.sh"
+. "$MODDIR/common/hma.sh"
 . "$MODDIR/common/report.sh"
 . "$MODDIR/common/apply.sh"

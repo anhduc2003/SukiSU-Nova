@@ -39,6 +39,28 @@ case "${1:-apply}" in
     keybox)
         keybox_install "${2:-}" || keybox_status=1
         ;;
+    hma)
+        cfg_load
+        case "${2:-setup}" in
+            on)
+                cfg_set AUTO_CONFIGURE_HMA 1
+                # shellcheck disable=SC2034
+                CFG_AUTO_CONFIGURE_HMA=1
+                hma_configure
+                ;;
+            off)
+                cfg_set AUTO_CONFIGURE_HMA 0
+                # shellcheck disable=SC2034
+                CFG_AUTO_CONFIGURE_HMA=0
+                hma_audit
+                printf 'hma: auto-setup off; the HMA config is left as it is\n'
+                ;;
+            *)
+                hma_configure
+                ;;
+        esac
+        report_text
+        ;;
     log)
         lines=${2:-60}
         case "$lines" in
@@ -56,6 +78,7 @@ case "${1:-apply}" in
             "$DATA_DIR/bootconfig.orig" "$DATA_DIR/bootconfig.fake" \
             "$DATA_DIR/maps.list" "$DATA_DIR/target.txt.keep" "$DATA_DIR/target.txt.tmp"
         disabled_list_prune
+        rm -f /data/misc/hide_my_applist_*/config.json.novahide-bak 2>/dev/null
         printf 'module traces removed from %s (config kept)\n' "$DATA_DIR"
         ;;
     reset)

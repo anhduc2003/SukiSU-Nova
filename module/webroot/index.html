@@ -79,6 +79,15 @@
   </section>
 
   <section class="panel">
+    <h2>HMA-OSS auto-setup</h2>
+    <div class="row">
+      <button id="hma-on" type="button">Enable and set up</button>
+      <button id="hma-off" type="button">Stop</button>
+    </div>
+    <p class="hint" id="hma-hint">On every apply, NovaHide writes an HMA template that hides the manager and hooking apps, and applies it to the installed banks and the packages in HMA_TARGET_APPS. HMA's daemon reloads the config live.</p>
+  </section>
+
+  <section class="panel">
     <h2>Output</h2>
     <pre id="output" class="output" hidden></pre>
     <p class="hint" id="hint">Readiness is a local check. Google decides the verdict server-side.</p>

@@ -69,6 +69,9 @@ apply_all() {
     else
         collect_companions read
     fi
+    if [ "$CFG_AUTO_CONFIGURE_HMA" = 1 ]; then
+        hma_configure
+    fi
 
     # Read back rather than assume: the verdict is built from what the device
     # actually reports after the writes, not from what was requested.
@@ -289,9 +292,9 @@ spoof_uname() {
     UNAME_STATE=off
     if [ -z "$CFG_UNAME_RELEASE" ] && [ -z "$CFG_UNAME_VERSION" ]; then
         # The kernel serves whatever string it was last given until the next
-        # boot, so a cleared config that had been applied still shows in
-        # detectors; the state file remembers that this is the case.
-        if [ "$(state_get uname)" = spoofed ]; then
+        # boot, so a cleared config on the same boot still shows in
+        # detectors; the record carries the boot it happened in.
+        if uname_record_boot_matches "$(state_get uname)"; then
             UNAME_STATE=stale
         fi
         return 0
@@ -405,6 +408,7 @@ collect_live() {
 
     props_audit
     audit_features
+    hma_audit
     MAPS_HIDDEN=0
     [ -f "$DATA_DIR/maps.list" ] && MAPS_HIDDEN=$(grep -c . "$DATA_DIR/maps.list" 2>/dev/null)
     [ -n "$MAPS_HIDDEN" ] || MAPS_HIDDEN=0

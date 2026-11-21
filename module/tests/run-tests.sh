@@ -460,13 +460,29 @@ run_script action.sh action-uname5 status
 assert_contains "a cleared kernel string says it survives" "$OUT/action-uname5.log" "serves the last spoofed string until reboot"
 run_script action.sh action-uname6 apply aggressive
 assert_contains "an apply after clearing still reports the stale string" "$OUT/action-uname6.log" "serves the last spoofed string until reboot"
+run_script action.sh action-uname6b apply aggressive
+assert_contains "a second apply keeps the stale warning" "$OUT/action-uname6b.log" "serves the last spoofed string until reboot"
+sed -i 's/^PROFILE=auto$/PROFILE=off/' /data/adb/novahide/config.conf
+run_script action.sh action-uname-off apply off
+if grep -q '^uname=stale:' /data/adb/novahide/last-apply; then
+    pass "a profile-off pass preserves the stale record"
+else
+    fail "a profile-off pass erased the stale record"
+fi
+sed -i 's/^PROFILE=off$/PROFILE=auto/' /data/adb/novahide/config.conf
+sed -i "s/^uname=.*/uname=stale:00000000-0000-0000-0000-000000000000/" /data/adb/novahide/last-apply
+run_script action.sh action-uname6c status
+assert_contains "a stale claim from an older boot is dropped" "$OUT/action-uname6c.log" "not configured"
+assert_not_contains "no stale wording remains" "$OUT/action-uname6c.log" "serves the last spoofed string"
+run_script action.sh action-uname7 status
+assert_contains "the cleared config reports nothing held" "$OUT/action-uname7.log" "not configured"
 sed -i 's/^UNAME_RELEASE=$/UNAME_RELEASE=6.1.115-android14/' /data/adb/novahide/config.conf
 sed -i 's/^UNAME_VERSION=$/UNAME_VERSION=#1 SMP PREEMPT/' /data/adb/novahide/config.conf
 : > "$CALLS"
-NOVAHIDE_TEST_FAIL_SUSFS=1 run_script action.sh action-uname7 apply aggressive
-assert_contains "a refused string is reported" "$OUT/action-uname7.log" "the kernel refused the string"
-run_script action.sh action-uname8 status
-assert_contains "the refusal is remembered in the status" "$OUT/action-uname8.log" "configured; the kernel refused the string"
+NOVAHIDE_TEST_FAIL_SUSFS=1 run_script action.sh action-uname8 apply aggressive
+assert_contains "a refused string is reported" "$OUT/action-uname8.log" "the kernel refused the string"
+run_script action.sh action-uname8b status
+assert_contains "the refusal is remembered in the status" "$OUT/action-uname8b.log" "configured; the kernel refused the string"
 sed -i 's/^UNAME_RELEASE=.*$/UNAME_RELEASE=/' /data/adb/novahide/config.conf
 sed -i 's/^UNAME_VERSION=.*$/UNAME_VERSION=/' /data/adb/novahide/config.conf
 
@@ -510,6 +526,65 @@ assert_contains "the refusal names TrickyStore" "$OUT/action-keybox-nostore.log"
 mv /data/adb/tricky_store.keep /data/adb/tricky_store
 run_script action.sh action-keybox-status status
 assert_contains "the status shows the keybox present" "$OUT/action-keybox-status.log" "keybox present"
+
+echo "== hma-oss"
+run_script action.sh action-hma0 status
+assert_contains "an off HMA setup is reported" "$OUT/action-hma0.log" "auto-setup off"
+sed -i 's/^AUTO_CONFIGURE_HMA=0$/AUTO_CONFIGURE_HMA=1/' /data/adb/novahide/config.conf
+run_script action.sh action-hma0b status
+assert_contains "an absent HMA is reported" "$OUT/action-hma0b.log" "not installed; nothing to configure"
+sed -i 's/^AUTO_CONFIGURE_HMA=1$/AUTO_CONFIGURE_HMA=0/' /data/adb/novahide/config.conf
+mkdir -p /data/misc/hide_my_applist_abcdefghijklmnop
+printf '{"configVersion":5,"detailLog":false,"templates":{},"scope":{}}\n' > /data/misc/hide_my_applist_abcdefghijklmnop/config.json
+: > "$CALLS"
+sed -i 's/^AUTO_CONFIGURE_HMA=0$/AUTO_CONFIGURE_HMA=1/' /data/adb/novahide/config.conf
+run_script action.sh action-hma1 apply aggressive
+assert_contains "the boot pass configures HMA" "$CALLS" "hide apply aggressive"
+if grep -q '"NovaHide":{"isWhitelist":false,"appList":\["com.sukisu.nova"\]}' \
+    /data/misc/hide_my_applist_abcdefghijklmnop/config.json; then
+    pass "the NovaHide template carries the manager package"
+else
+    fail "the NovaHide template is missing the manager package"
+fi
+if grep -q '"com.vcb":{"useWhitelist":false,"excludeSystemApps":true,"applyTemplates":\["NovaHide"\]}' \
+    /data/misc/hide_my_applist_abcdefghijklmnop/config.json; then
+    pass "the bank gets a scope entry"
+else
+    fail "the bank has no scope entry"
+fi
+if grep -q '"com.mbmobile"' /data/misc/hide_my_applist_abcdefghijklmnop/config.json; then
+    pass "the second bank gets a scope entry"
+else
+    fail "the second bank has no scope entry"
+fi
+assert_contains "the status reports the setup" "$OUT/action-hma1.log" "the NovaHide template is applied"
+printf '{"configVersion":5,"templates":{"Mine":{"isWhitelist":true,"appList":["com.a"]}},"scope":{"com.vcb":{"useWhitelist":true,"applyTemplates":["Mine"]}}}\n' > /data/misc/hide_my_applist_abcdefghijklmnop/config.json
+run_script action.sh action-hma2 apply aggressive
+if grep -q '"Mine":{"isWhitelist":true,"appList":\["com.a"\]}' \
+    /data/misc/hide_my_applist_abcdefghijklmnop/config.json; then
+    pass "the user's own template survives"
+else
+    fail "the user's own template was destroyed"
+fi
+if grep -q '"com.vcb":{"useWhitelist":true,"applyTemplates":\["Mine"\]}' \
+    /data/misc/hide_my_applist_abcdefghijklmnop/config.json; then
+    pass "the user's own scope entry survives"
+else
+    fail "the user's own scope entry was rewritten"
+fi
+sed -i 's/^AUTO_CONFIGURE_HMA=1$/AUTO_CONFIGURE_HMA=0/' /data/adb/novahide/config.conf
+printf '{"configVersion":5,"templates":{},"scope":{}}\n' > /data/misc/hide_my_applist_abcdefghijklmnop/config.json
+printf '{\n  "configVersion": 5\n}\n' > /data/misc/hide_my_applist_abcdefghijklmnop/config.json
+sed -i 's/^AUTO_CONFIGURE_HMA=0$/AUTO_CONFIGURE_HMA=1/' /data/adb/novahide/config.conf
+run_script action.sh action-hma3 apply aggressive
+if grep -q '"NovaHide"' /data/misc/hide_my_applist_abcdefghijklmnop/config.json; then
+    fail "a pretty-printed config was rewritten"
+else
+    pass "a pretty-printed config is left alone"
+fi
+assert_contains "the refusal is explained" "$OUT/action-hma3.log" "not a single compact line"
+sed -i 's/^AUTO_CONFIGURE_HMA=1$/AUTO_CONFIGURE_HMA=0/' /data/adb/novahide/config.conf
+rm -rf /data/misc/hide_my_applist_abcdefghijklmnop
 
 echo "== disabled fingerprint"
 : > /data/adb/modules/playintegrityfix/disable

@@ -70,6 +70,8 @@ or re-add a path with a different meaning.
 | `STATUS_IN_DESCRIPTION` | `1` | Put the last run's summary into `module.prop`. |
 | `SUSFS_KERNEL_LOG` | `0` | `1` turns SuSFS kernel logging back on for debugging. |
 | `AUTO_DISABLE_CONFLICTS` | `0` | `1` also disables the conflicting module NovaHide names for a fixable conflict (see "Module conflicts"). Takes effect at the next boot, once per module. |
+| `AUTO_CONFIGURE_HMA` | `0` | `1` lets NovaHide maintain HMA-OSS's config: a template hiding the manager and hooking apps, applied to the banks and `HMA_TARGET_APPS` (see "HMA-OSS auto-setup"). |
+| `HMA_TARGET_APPS` | empty | Apps the HMA setup covers beyond the known banks, space or comma separated, same as `EXTRA_BANKING_APPS`. |
 | `UNAME_RELEASE`, `UNAME_VERSION` | empty | The stock kernel release and version strings, both required; when set, SuSFS serves them to non-su processes instead of the custom kernel's own (see "Against Duck Detector"). |
 
 `PROFILE` controls the SuSFS side: the path packs, the extra self paths, mount
@@ -171,6 +173,26 @@ Google's server-side decision: a revoked or software-generated key produces a
 red verdict no module can change, and the report keeps saying STRONG needs a
 key without claiming one works. The installed file is yours, not a trace:
 Purge traces leaves it in place.
+
+## HMA-OSS auto-setup
+
+HMA-OSS (frknkrc44's Hide My Applist fork) hides apps from other apps'
+package queries; out of the box, every target app must be configured by
+hand in its manager. With the WebUI's "Enable and set up" button, NovaHide
+takes that over: it writes a `NovaHide` template into HMA's config that
+hides the manager and hooking apps, applies the template to the installed
+banks and the packages in `HMA_TARGET_APPS`, and repeats the merge on every
+apply, new banks included. HMA's daemon watches its own `config.json` and
+reloads the change live — no reboot, no opening its manager.
+
+The merge is guarded: it only edits a config that looks exactly like the
+compact single-line JSON HMA itself writes, keeps every template and
+per-app setting you configured yourself, refuses a pretty-printed or
+unexpected file with the reason in the report, and leaves a
+`config.json.novahide-bak` beside it before the first edit (Purge traces
+removes that backup). Switching the feature off stops NovaHide from
+touching HMA; what it already wrote stays, since HMA's own manager can
+edit or remove it.
 
 ## Vietnamese banking apps
 
