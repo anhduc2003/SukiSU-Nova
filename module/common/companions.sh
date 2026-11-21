@@ -442,6 +442,76 @@ conflicts_count() {
     printf '%s' "$count"
 }
 
+# Validate the shape of a user-provided keybox.xml.
+#
+# This is a structure check, not a trust check: Google decides server-side
+# whether a key is accepted, and no local check can see a revocation. The
+# reason string is the whole feedback the user gets, so it names the first
+# thing that is missing.
+keybox_validate() {
+    file=$1
+    KEYBOX_REASON=
+    grep -q '<keybox' "$file" || { KEYBOX_REASON="no <keybox> root element"; return 1; }
+    grep -q '</keybox>' "$file" || { KEYBOX_REASON="the <keybox> element is not closed"; return 1; }
+    grep -q '<Key algorithm=' "$file" || { KEYBOX_REASON="no <Key> entries"; return 1; }
+    grep -q '<PrivateKey' "$file" || { KEYBOX_REASON="no private key material"; return 1; }
+    grep -q 'BEGIN [A-Z ]*PRIVATE KEY' "$file" ||
+        { KEYBOX_REASON="the private key is not PEM"; return 1; }
+    grep -q '<CertificateChain>' "$file" || { KEYBOX_REASON="no certificate chain"; return 1; }
+    grep -q 'BEGIN CERTIFICATE' "$file" ||
+        { KEYBOX_REASON="no certificates in the chain"; return 1; }
+    return 0
+}
+
+# Install a user-provided keybox.xml for TrickyStore.
+#
+# The file travels from the WebUI as base64, is decoded into a temporary
+# file, validated, and only then moved into TrickyStore's directory. NovaHide
+# never invents a keybox and never stages one for a module that is not
+# installed; the installed file is the user's own secret and is left alone by
+# Purge traces, which only clears NovaHide's own state.
+keybox_install() {
+    b64=$1
+    tmp=$DATA_DIR/keybox.xml.tmp
+    if [ -z "$b64" ]; then
+        printf 'keybox: no file received\n'
+        return 1
+    fi
+    if ! printf '%s' "$b64" | base64 -d > "$tmp" 2>/dev/null; then
+        printf 'keybox: the upload is not valid base64\n'
+        rm -f "$tmp"
+        return 1
+    fi
+    size=$(wc -c < "$tmp")
+    if [ "$size" -lt 200 ] || [ "$size" -gt 1048576 ]; then
+        printf 'keybox: %s bytes is not a keybox size\n' "$size"
+        rm -f "$tmp"
+        return 1
+    fi
+    if ! keybox_validate "$tmp"; then
+        printf 'keybox: %s\n' "$KEYBOX_REASON"
+        rm -f "$tmp"
+        return 1
+    fi
+    if [ ! -d /data/adb/tricky_store ]; then
+        printf 'keybox: install TrickyStore first; NovaHide does not stage secrets\n'
+        rm -f "$tmp"
+        return 1
+    fi
+    if cp -f "$tmp" /data/adb/tricky_store/keybox.xml.new &&
+        mv -f /data/adb/tricky_store/keybox.xml.new /data/adb/tricky_store/keybox.xml; then
+        chmod 0600 /data/adb/tricky_store/keybox.xml 2>/dev/null
+        chown 0:0 /data/adb/tricky_store/keybox.xml 2>/dev/null
+        printf 'keybox: installed for TrickyStore; a key being accepted is still decided server-side\n'
+        rm -f "$tmp"
+        log_info "keybox: a user-provided keybox was installed"
+        return 0
+    fi
+    printf "keybox: could not write TrickyStore's keybox.xml\n"
+    rm -f "$tmp"
+    return 1
+}
+
 companions_text() {
     [ -f "$COMPANIONS_FILE" ] || return 0
     while IFS='|' read -r name state note; do

@@ -156,6 +156,22 @@ report is built from what the module knows. The on-device test is the last
 word — flash, apply `aggressive`, reboot, run Duck, and expand each red card:
 the table above says which card maps to which knob.
 
+## Keybox
+
+The WebUI's Keybox panel loads a `keybox.xml` file of your own: NovaHide
+decodes it, checks that it has the shape TrickyStore needs (a `<keybox>` root,
+at least one key with PEM private key material and a certificate chain), and
+installs it as TrickyStore's `keybox.xml`, mode `0600`. TrickyStore must be
+installed first — NovaHide does not stage secrets for a module that is not
+there — and the file is never overwritten by a later pass, only by another
+upload of yours.
+
+The check is structural only. Whether a key is accepted for attestation is
+Google's server-side decision: a revoked or software-generated key produces a
+red verdict no module can change, and the report keeps saying STRONG needs a
+key without claiming one works. The installed file is yours, not a trace:
+Purge traces leaves it in place.
+
 ## Vietnamese banking apps
 
 Root hiding applies to every non-su process, so a banking app is covered

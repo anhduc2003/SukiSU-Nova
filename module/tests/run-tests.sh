@@ -445,8 +445,59 @@ sed -i 's/^UNAME_VERSION=$/UNAME_VERSION=#1 SMP PREEMPT Thu Jan 1 00:00:00 UTC 1
 run_script action.sh action-uname2 apply aggressive
 assert_contains "the kernel string is spoofed with both values" "$CALLS" "susfs set-uname 6.1.115-android14 #1 SMP PREEMPT Thu Jan 1 00:00:00 UTC 1970"
 assert_contains "the apply reports the spoof" "$OUT/action-uname2.log" "spoofed for non-su processes"
-sed -i 's/^UNAME_RELEASE=6.1.115-android14$/UNAME_RELEASE=/' /data/adb/novahide/config.conf
+sed -i 's/^UNAME_RELEASE=6.1.115-android14$/UNAME_RELEASE=4.14.117-perf+/' /data/adb/novahide/config.conf
+sed -i 's/^UNAME_VERSION=.*$/UNAME_VERSION=#1 SMP PREEMPT/' /data/adb/novahide/config.conf
+: > "$CALLS"
+run_script action.sh action-uname3 apply aggressive
+assert_contains "a plus-signed release reaches the kernel" "$CALLS" "susfs set-uname 4.14.117-perf+ #1 SMP PREEMPT"
+sed -i 's/^UNAME_RELEASE=4.14.117-perf+$/UNAME_RELEASE=4.14.117-perf+ (dropped)/' /data/adb/novahide/config.conf
+: > "$CALLS"
+run_script action.sh action-uname4 apply aggressive
+assert_contains "a mangled release is logged" /data/adb/novahide/novahide.log "UNAME_RELEASE had characters removed"
+sed -i 's/^UNAME_RELEASE=.*$/UNAME_RELEASE=/' /data/adb/novahide/config.conf
 sed -i 's/^UNAME_VERSION=.*$/UNAME_VERSION=/' /data/adb/novahide/config.conf
+run_script action.sh action-uname5 status
+assert_contains "a cleared kernel string says it survives" "$OUT/action-uname5.log" "serves the last spoofed string until reboot"
+
+echo "== keybox upload"
+cat > /data/adb/novahide/kb-test.xml <<'EOF'
+<?xml version="1.0" encoding="utf-8"?>
+<keybox DeviceID="test-device">
+  <Key algorithm="ecdsa">
+    <PrivateKey format="pem">
+-----BEGIN EC PRIVATE KEY-----
+MHcCAQEEIIabc
+-----END EC PRIVATE KEY-----
+    </PrivateKey>
+    <CertificateChain>
+      <Certificate format="pem">
+-----BEGIN CERTIFICATE-----
+MIIBhTCCASsC
+-----END CERTIFICATE-----
+      </Certificate>
+    </CertificateChain>
+  </Key>
+</keybox>
+EOF
+b64_valid=$(base64 -w0 /data/adb/novahide/kb-test.xml)
+run_script action.sh action-keybox keybox "$b64_valid"
+assert_eq "the keybox upload exits 0" "$?" "0"
+assert_contains "the install is reported" "$OUT/action-keybox.log" "installed for TrickyStore"
+assert_ok test -f /data/adb/tricky_store/keybox.xml
+assert_eq "the file survives the round trip" \
+    "$(wc -c < /data/adb/tricky_store/keybox.xml)" "$(wc -c < /data/adb/novahide/kb-test.xml)"
+b64_bad=$(head -c 300 /dev/zero | base64 -w0)
+run_script action.sh action-keybox-bad keybox "$b64_bad"
+assert_eq "the invalid upload is refused" "$?" "1"
+assert_contains "the refusal says why" "$OUT/action-keybox-bad.log" "no <keybox> root element"
+assert_contains "the old keybox survives a refusal" /data/adb/tricky_store/keybox.xml "test-device"
+mv /data/adb/tricky_store /data/adb/tricky_store.keep
+run_script action.sh action-keybox-nostore keybox "$b64_valid"
+assert_eq "the upload without TrickyStore is refused" "$?" "1"
+assert_contains "the refusal names TrickyStore" "$OUT/action-keybox-nostore.log" "install TrickyStore first"
+mv /data/adb/tricky_store.keep /data/adb/tricky_store
+run_script action.sh action-keybox-status status
+assert_contains "the status shows the keybox present" "$OUT/action-keybox-status.log" "keybox present"
 
 echo "== disabled fingerprint"
 : > /data/adb/modules/playintegrityfix/disable
@@ -484,6 +535,7 @@ assert_eq "purge exits 0" "$?" "0"
 assert_ok test ! -f /data/adb/novahide/novahide.log
 assert_ok test ! -f /data/adb/novahide/status.txt
 assert_ok test -f /data/adb/novahide/config.conf
+assert_ok test -f /data/adb/tricky_store/keybox.xml
 
 echo "== uninstall"
 run_script uninstall.sh uninstall

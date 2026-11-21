@@ -63,6 +63,7 @@ state_write() {
         printf 'applied=%s\n' "${HIDE_APPLIED:-0}"
         printf 'skipped=%s\n' "${HIDE_SKIPPED:-0}"
         printf 'verifiedboot=%s\n' "${PROPS_VERIFIEDBOOT:-}"
+        printf 'uname=%s\n' "${UNAME_STATE:-}"
     } > "$STATE_FILE.tmp" 2>/dev/null &&
         mv -f "$STATE_FILE.tmp" "$STATE_FILE" 2>/dev/null
     chmod 0644 "$STATE_FILE" 2>/dev/null
@@ -157,20 +158,31 @@ props_line() {
 }
 
 # The kernel string is held in kernel memory, and SuSFS cannot report it
-# back, so a status run only says what the config asks for.
+# back. A status run says what the config asks for and what the last apply
+# recorded; when the values are cleared, the last spoofed string stays
+# served until the next reboot, and the report keeps saying so.
 uname_line() {
-    if [ "$RUN_MODE" = apply ]; then
+    configured=0
+    if [ -n "$CFG_UNAME_RELEASE" ] && [ -n "$CFG_UNAME_VERSION" ]; then
+        configured=1
+    fi
+    if [ "$RUN_MODE" = apply ] && [ "$UNAME_STATE" != off ]; then
         case "$UNAME_STATE" in
             spoofed) printf 'spoofed for non-su processes' ;;
             refused) printf 'the kernel refused the string' ;;
             unavailable) printf 'no SuSFS on this kernel' ;;
             partial) printf 'set both UNAME_RELEASE and UNAME_VERSION' ;;
-            *) printf 'not configured' ;;
         esac
         return 0
     fi
-    if [ -n "$CFG_UNAME_RELEASE" ] && [ -n "$CFG_UNAME_VERSION" ]; then
-        printf 'configured; applied by the last apply pass'
+    if [ "$configured" = 1 ]; then
+        if [ "$PROFILE_USED" = off ]; then
+            printf 'configured but not applied this pass (profile off)'
+        else
+            printf 'configured; applied by the last apply pass'
+        fi
+    elif [ "$(state_get uname)" = spoofed ]; then
+        printf 'not configured; the kernel serves the last spoofed string until reboot'
     else
         printf 'not configured'
     fi

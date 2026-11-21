@@ -65,7 +65,7 @@
     }
 
     function setBusy(busy) {
-        ['apply', 'refresh', 'log', 'purge', 'reset'].forEach(function (id) {
+        ['apply', 'refresh', 'log', 'purge', 'reset', 'keybox'].forEach(function (id) {
             var el = $(id);
             if (el) {
                 el.disabled = busy;
@@ -349,6 +349,43 @@
         }
     }
 
+    // The file travels as base64 in one command: a keybox is a few kilobytes,
+    // and the bridge's exec takes that comfortably. The device-side check is
+    // the real one; the two checks here only save a round trip.
+    async function uploadKeybox() {
+        var input = $('keybox-file');
+        if (!input.files || !input.files.length) {
+            setNotice('Pick a keybox.xml file first.');
+            return;
+        }
+        var file = input.files[0];
+        if (file.size > 786432) {
+            setNotice('That file is too large to be a keybox.xml.');
+            return;
+        }
+        var text = await file.text();
+        if (!/<keybox/.test(text)) {
+            setNotice('That file has no <keybox> root element.');
+            return;
+        }
+        var b64 = btoa(unescape(encodeURIComponent(text)));
+        setBusy(true);
+        setNotice('');
+        try {
+            var res = await run(actionCommand('keybox ' + quote(b64)), 45000);
+            showOutput(res.out || res.err);
+            if (res.code !== 0) {
+                setNotice('The keybox was not installed. See the output below.');
+            }
+            await refresh();
+        } catch (err) {
+            setNotice('The keybox upload failed: ' + err.message);
+        } finally {
+            setBusy(false);
+            input.value = '';
+        }
+    }
+
     function init() {
         moduleDir = resolveModuleDir();
         $('apply').addEventListener('click', applyProfile);
@@ -356,6 +393,10 @@
         $('log').addEventListener('click', showLog);
         $('purge').addEventListener('click', purgeTraces);
         $('reset').addEventListener('click', resetConfig);
+        $('keybox').addEventListener('click', function () {
+            $('keybox-file').click();
+        });
+        $('keybox-file').addEventListener('change', uploadKeybox);
 
         if (!bridge()) {
             setNotice('Open this page from NovaHide in SukiSU Nova: the module action or the module WebUI.');

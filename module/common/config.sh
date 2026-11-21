@@ -68,9 +68,17 @@ cfg_validate() {
     CFG_SUSFS_KERNEL_LOG=$(cfg_flag "$CFG_SUSFS_KERNEL_LOG" SUSFS_KERNEL_LOG)
     CFG_AUTO_DISABLE_CONFLICTS=$(cfg_flag "$CFG_AUTO_DISABLE_CONFLICTS" AUTO_DISABLE_CONFLICTS)
     # Kernel strings are short and printable; anything else in the value is a
-    # typo or an injection attempt, and both fail the same way.
-    CFG_UNAME_RELEASE=$(printf '%s' "$CFG_UNAME_RELEASE" | tr -cd 'A-Za-z0-9._: #-')
-    CFG_UNAME_VERSION=$(printf '%s' "$CFG_UNAME_VERSION" | tr -cd 'A-Za-z0-9._: #-')
+    # typo or an injection attempt, and both fail the same way. A character
+    # the set drops is logged, so a silently mangled stock string cannot be
+    # spoofed as if it were the real one.
+    raw=$CFG_UNAME_RELEASE
+    CFG_UNAME_RELEASE=$(printf '%s' "$raw" | tr -cd 'A-Za-z0-9._:+ #-')
+    [ "$CFG_UNAME_RELEASE" = "$raw" ] ||
+        log_warn "config: UNAME_RELEASE had characters removed ($raw)"
+    raw=$CFG_UNAME_VERSION
+    CFG_UNAME_VERSION=$(printf '%s' "$raw" | tr -cd 'A-Za-z0-9._:+ #-')
+    [ "$CFG_UNAME_VERSION" = "$raw" ] ||
+        log_warn "config: UNAME_VERSION had characters removed ($raw)"
     # Only package-name characters survive, so a stray quote in the file
     # cannot turn into an argument to anything.
     CFG_EXTRA_BANKING_APPS=$(printf '%s' "$CFG_EXTRA_BANKING_APPS" | tr ',' ' ' | tr -cd 'A-Za-z0-9._ \n')
