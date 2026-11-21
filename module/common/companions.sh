@@ -473,6 +473,9 @@ keybox_validate() {
 keybox_install() {
     b64=$1
     tmp=$DATA_DIR/keybox.xml.tmp
+    installed=/data/adb/tricky_store/keybox.xml
+    # Private key material must never land at the default mode.
+    umask 077
     if [ -z "$b64" ]; then
         printf 'keybox: no file received\n'
         return 1
@@ -483,7 +486,7 @@ keybox_install() {
         return 1
     fi
     size=$(wc -c < "$tmp")
-    if [ "$size" -lt 200 ] || [ "$size" -gt 1048576 ]; then
+    if [ "$size" -lt 200 ] || [ "$size" -gt 65536 ]; then
         printf 'keybox: %s bytes is not a keybox size\n' "$size"
         rm -f "$tmp"
         return 1
@@ -498,17 +501,17 @@ keybox_install() {
         rm -f "$tmp"
         return 1
     fi
-    if cp -f "$tmp" /data/adb/tricky_store/keybox.xml.new &&
-        mv -f /data/adb/tricky_store/keybox.xml.new /data/adb/tricky_store/keybox.xml; then
-        chmod 0600 /data/adb/tricky_store/keybox.xml 2>/dev/null
-        chown 0:0 /data/adb/tricky_store/keybox.xml 2>/dev/null
+    if cp -f "$tmp" "$installed.new" &&
+        mv -f "$installed.new" "$installed"; then
+        chmod 0600 "$installed" 2>/dev/null
+        chown 0:0 "$installed" 2>/dev/null
         printf 'keybox: installed for TrickyStore; a key being accepted is still decided server-side\n'
         rm -f "$tmp"
         log_info "keybox: a user-provided keybox was installed"
         return 0
     fi
     printf "keybox: could not write TrickyStore's keybox.xml\n"
-    rm -f "$tmp"
+    rm -f "$tmp" "$installed.new"
     return 1
 }
 

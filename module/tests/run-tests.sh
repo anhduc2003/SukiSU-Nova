@@ -189,7 +189,7 @@ case "$cmd" in
             variant) printf 'gki\n' ;;
             implementation) printf 'builtin\n' ;;
             features) printf 'SUSFS_SUS_PATH,SUSFS_SUS_MAP,SUSFS_SUS_MOUNT\n' ;;
-            add-sus-path|add-sus-map|set-cmdline-or-bootconfig|hide-sus-mnts-for-non-su-procs)
+            add-sus-path|add-sus-map|set-cmdline-or-bootconfig|hide-sus-mnts-for-non-su-procs|set-uname)
                 [ -n "${NOVAHIDE_TEST_FAIL_SUSFS:-}" ] && exit 1
                 ;;
         esac
@@ -458,6 +458,17 @@ sed -i 's/^UNAME_RELEASE=.*$/UNAME_RELEASE=/' /data/adb/novahide/config.conf
 sed -i 's/^UNAME_VERSION=.*$/UNAME_VERSION=/' /data/adb/novahide/config.conf
 run_script action.sh action-uname5 status
 assert_contains "a cleared kernel string says it survives" "$OUT/action-uname5.log" "serves the last spoofed string until reboot"
+run_script action.sh action-uname6 apply aggressive
+assert_contains "an apply after clearing still reports the stale string" "$OUT/action-uname6.log" "serves the last spoofed string until reboot"
+sed -i 's/^UNAME_RELEASE=$/UNAME_RELEASE=6.1.115-android14/' /data/adb/novahide/config.conf
+sed -i 's/^UNAME_VERSION=$/UNAME_VERSION=#1 SMP PREEMPT/' /data/adb/novahide/config.conf
+: > "$CALLS"
+NOVAHIDE_TEST_FAIL_SUSFS=1 run_script action.sh action-uname7 apply aggressive
+assert_contains "a refused string is reported" "$OUT/action-uname7.log" "the kernel refused the string"
+run_script action.sh action-uname8 status
+assert_contains "the refusal is remembered in the status" "$OUT/action-uname8.log" "configured; the kernel refused the string"
+sed -i 's/^UNAME_RELEASE=.*$/UNAME_RELEASE=/' /data/adb/novahide/config.conf
+sed -i 's/^UNAME_VERSION=.*$/UNAME_VERSION=/' /data/adb/novahide/config.conf
 
 echo "== keybox upload"
 cat > /data/adb/novahide/kb-test.xml <<'EOF'
@@ -486,6 +497,7 @@ assert_contains "the install is reported" "$OUT/action-keybox.log" "installed fo
 assert_ok test -f /data/adb/tricky_store/keybox.xml
 assert_eq "the file survives the round trip" \
     "$(wc -c < /data/adb/tricky_store/keybox.xml)" "$(wc -c < /data/adb/novahide/kb-test.xml)"
+assert_eq "the installed keybox is mode 0600" "$(stat -c %a /data/adb/tricky_store/keybox.xml)" "600"
 b64_bad=$(head -c 300 /dev/zero | base64 -w0)
 run_script action.sh action-keybox-bad keybox "$b64_bad"
 assert_eq "the invalid upload is refused" "$?" "1"

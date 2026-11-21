@@ -349,9 +349,10 @@
         }
     }
 
-    // The file travels as base64 in one command: a keybox is a few kilobytes,
-    // and the bridge's exec takes that comfortably. The device-side check is
-    // the real one; the two checks here only save a round trip.
+    // The file travels as base64 in one command; the kernel caps a single
+    // argument at 128 KiB, so a 64 KiB file (about 87 KiB encoded) keeps a
+    // margin under it. A real keybox is a few kilobytes. The device-side
+    // check is the real one; the two checks here only save a round trip.
     async function uploadKeybox() {
         var input = $('keybox-file');
         if (!input.files || !input.files.length) {
@@ -359,7 +360,7 @@
             return;
         }
         var file = input.files[0];
-        if (file.size > 786432) {
+        if (file.size > 65536) {
             setNotice('That file is too large to be a keybox.xml.');
             return;
         }

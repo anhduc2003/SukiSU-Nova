@@ -288,6 +288,12 @@ apply_maps() {
 spoof_uname() {
     UNAME_STATE=off
     if [ -z "$CFG_UNAME_RELEASE" ] && [ -z "$CFG_UNAME_VERSION" ]; then
+        # The kernel serves whatever string it was last given until the next
+        # boot, so a cleared config that had been applied still shows in
+        # detectors; the state file remembers that this is the case.
+        if [ "$(state_get uname)" = spoofed ]; then
+            UNAME_STATE=stale
+        fi
         return 0
     fi
     if [ "$SUSFS_AVAILABLE" != 1 ]; then

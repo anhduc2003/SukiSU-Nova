@@ -166,26 +166,39 @@ uname_line() {
     if [ -n "$CFG_UNAME_RELEASE" ] && [ -n "$CFG_UNAME_VERSION" ]; then
         configured=1
     fi
-    if [ "$RUN_MODE" = apply ] && [ "$UNAME_STATE" != off ]; then
-        case "$UNAME_STATE" in
-            spoofed) printf 'spoofed for non-su processes' ;;
-            refused) printf 'the kernel refused the string' ;;
-            unavailable) printf 'no SuSFS on this kernel' ;;
-            partial) printf 'set both UNAME_RELEASE and UNAME_VERSION' ;;
+    case "$UNAME_STATE" in
+        spoofed) printf 'spoofed for non-su processes' ; return 0 ;;
+        refused) printf 'the kernel refused the string' ; return 0 ;;
+        unavailable) printf 'no SuSFS on this kernel' ; return 0 ;;
+        partial) printf 'set both UNAME_RELEASE and UNAME_VERSION' ; return 0 ;;
+        stale) printf 'not configured; the kernel serves the last spoofed string until reboot' ; return 0 ;;
+    esac
+    if [ "$configured" != 1 ]; then
+        # The kernel serves whatever string it was last given until the next
+        # boot, whether the config was cleared before or after that apply.
+        case "$(state_get uname)" in
+            stale|spoofed)
+                printf 'not configured; the kernel serves the last spoofed string until reboot'
+                ;;
+            *)
+                printf 'not configured'
+                ;;
         esac
         return 0
     fi
-    if [ "$configured" = 1 ]; then
-        if [ "$PROFILE_USED" = off ]; then
-            printf 'configured but not applied this pass (profile off)'
-        else
-            printf 'configured; applied by the last apply pass'
-        fi
-    elif [ "$(state_get uname)" = spoofed ]; then
-        printf 'not configured; the kernel serves the last spoofed string until reboot'
-    else
-        printf 'not configured'
+    if [ "$RUN_MODE" = apply ]; then
+        # spoof_uname only skips the pass when the profile is off.
+        printf 'configured but not applied this pass (profile off)'
+        return 0
     fi
+    # A status run cannot ask the kernel, so the last apply's outcome answers.
+    case "$(state_get uname)" in
+        spoofed) printf 'configured; applied by the last apply pass' ;;
+        refused) printf 'configured; the kernel refused the string' ;;
+        unavailable) printf 'configured; no SuSFS on this kernel' ;;
+        partial) printf 'configured; set both values in the config' ;;
+        *) printf 'configured; not applied yet' ;;
+    esac
 }
 
 report_text() {
