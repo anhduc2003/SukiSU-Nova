@@ -38,28 +38,53 @@ jobs:
           set -eux
           remote="https://git.zako.shirkneko.top:20004"
           mirror="/ci/repo-cache/${GITHUB_REPOSITORY}.git"
-          mkdir -p "$(dirname "$mirror")"
-          if [ ! -d "$mirror" ]; then
-            set +x
-            git -c "http.${remote}/.extraHeader=Authorization: token ${TOKEN}" \
-              clone -q --mirror "${remote}/${GITHUB_REPOSITORY}.git" "$mirror"
-            set -x
-          elif command -v flock >/dev/null 2>&1; then
-            (
-              flock 9
+          # The self-hosted runner keeps one bare mirror per repository on a
+          # shared /ci volume. A GitHub-hosted runner, which is what a fork's
+          # pull request gets, has no such volume: fall back to a direct clone
+          # instead of failing before any code is read.
+          if mkdir -p "$(dirname "$mirror")" 2>/dev/null; then
+            if [ ! -d "$mirror" ]; then
+              set +x
+              git -c "http.${remote}/.extraHeader=Authorization: token ${TOKEN}" \
+                clone -q --mirror "${remote}/${GITHUB_REPOSITORY}.git" "$mirror"
+              set -x
+            elif command -v flock >/dev/null 2>&1; then
+              (
+                flock 9
+                git --git-dir="$mirror" fetch -q --prune origin \
+                  "+refs/heads/*:refs/heads/*" "+refs/tags/*:refs/tags/*"
+              ) 9>"${mirror}.lock"
+            else
               git --git-dir="$mirror" fetch -q --prune origin \
                 "+refs/heads/*:refs/heads/*" "+refs/tags/*:refs/tags/*"
-            ) 9>"${mirror}.lock"
+            fi
+            git clone -q --shared --no-checkout "$mirror" .
+            git checkout -q "${GITHUB_SHA}"
           else
-            git --git-dir="$mirror" fetch -q --prune origin \
-              "+refs/heads/*:refs/heads/*" "+refs/tags/*:refs/tags/*"
+            # The ref, not ${GITHUB_SHA}: on a pull_request event the SHA is the
+            # merge commit, which a plain clone does not fetch.
+            git init -q .
+            git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+            set +x
+            git -c "http.https://github.com/.extraHeader=Authorization: token ${TOKEN}" \
+              fetch -q --depth 1 origin "${GITHUB_REF}"
+            set -x
+            git checkout -q FETCH_HEAD
           fi
-          git clone -q --shared --no-checkout "$mirror" .
-          git checkout -q "${GITHUB_SHA}"
 
       - name: ShellCheck
         run: |
           set -eux
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            echo "shellcheck is not preinstalled, installing it"
+            if command -v sudo >/dev/null 2>&1; then
+              sudo apt-get update -qq
+              sudo apt-get install -y -qq shellcheck
+            else
+              apt-get update -qq
+              apt-get install -y -qq shellcheck
+            fi
+          fi
           mapfile -t files < <(git ls-files '*.sh' | grep -E '^(module/|scripts/build-module\.sh)' || true)
           if [ "${#files[@]}" -eq 0 ]; then
             echo "no module scripts to check"
@@ -74,6 +99,14 @@ jobs:
       - name: Publish artifact
         run: |
           set -eux
-          . .github/scripts/ci/common.sh
-          ci_artifact_put novahide out/*.zip
-          ls -la "$(ci_artifact_path novahide)"
+          root="${CI_ARTIFACT_ROOT:-/ci/runs/${GITHUB_RUN_ID}}"
+          if mkdir -p "$root" 2>/dev/null; then
+            . .github/scripts/ci/common.sh
+            ci_artifact_put novahide out/*.zip
+            ls -la "$(ci_artifact_path novahide)"
+          else
+            # No shared artifact volume on this runner; the zip is still built
+            # and its path and hash are in the build log above.
+            echo "no writable artifact root, leaving the zip in out/"
+            ls -la out/
+          fi

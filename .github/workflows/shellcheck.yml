@@ -34,31 +34,53 @@ jobs:
           set -eux
           remote="https://git.zako.shirkneko.top:20004"
           mirror="/ci/repo-cache/${GITHUB_REPOSITORY}.git"
-          mkdir -p "$(dirname "$mirror")"
-          # One bare mirror per repository lives on the runner host, shared by
-          # every job through the /ci volume. Re-downloading the whole history
-          # per job made parallel jobs stall on the same fetch.
-          if [ ! -d "$mirror" ]; then
-            # The token must not appear in the trace of `set -x`.
-            set +x
-            git -c "http.${remote}/.extraHeader=Authorization: token ${TOKEN}" \
-              clone -q --mirror "${remote}/${GITHUB_REPOSITORY}.git" "$mirror"
-            set -x
-          elif command -v flock >/dev/null 2>&1; then
-            (
-              flock 9
+          # The self-hosted runner keeps one bare mirror per repository on a
+          # shared /ci volume. A GitHub-hosted runner, which is what a fork's
+          # pull request gets, has no such volume: fall back to a direct clone
+          # instead of failing before any code is read.
+          if mkdir -p "$(dirname "$mirror")" 2>/dev/null; then
+            if [ ! -d "$mirror" ]; then
+              set +x
+              git -c "http.${remote}/.extraHeader=Authorization: token ${TOKEN}" \
+                clone -q --mirror "${remote}/${GITHUB_REPOSITORY}.git" "$mirror"
+              set -x
+            elif command -v flock >/dev/null 2>&1; then
+              (
+                flock 9
+                git --git-dir="$mirror" fetch -q --prune origin \
+                  "+refs/heads/*:refs/heads/*" "+refs/tags/*:refs/tags/*"
+              ) 9>"${mirror}.lock"
+            else
               git --git-dir="$mirror" fetch -q --prune origin \
                 "+refs/heads/*:refs/heads/*" "+refs/tags/*:refs/tags/*"
-            ) 9>"${mirror}.lock"
+            fi
+            git clone -q --shared --no-checkout "$mirror" .
+            git checkout -q "${GITHUB_SHA}"
           else
-            git --git-dir="$mirror" fetch -q --prune origin \
-              "+refs/heads/*:refs/heads/*" "+refs/tags/*:refs/tags/*"
+            # The ref, not ${GITHUB_SHA}: on a pull_request event the SHA is the
+            # merge commit, which a plain clone does not fetch.
+            git init -q .
+            git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+            set +x
+            git -c "http.https://github.com/.extraHeader=Authorization: token ${TOKEN}" \
+              fetch -q --depth 1 origin "${GITHUB_REF}"
+            set -x
+            git checkout -q FETCH_HEAD
           fi
-          git clone -q --shared --no-checkout "$mirror" .
-          git checkout -q "${GITHUB_SHA}"
 
       - name: Check toolchain
-        run: shellcheck --version | head -2
+        run: |
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            echo "shellcheck is not preinstalled, installing it"
+            if command -v sudo >/dev/null 2>&1; then
+              sudo apt-get update -qq
+              sudo apt-get install -y -qq shellcheck
+            else
+              apt-get update -qq
+              apt-get install -y -qq shellcheck
+            fi
+          fi
+          shellcheck --version | head -2
 
       - name: Run ShellCheck
         run: |
