@@ -34,6 +34,16 @@ It bundles nobody else's binaries. It drives what is already on the device.
   own pack: ColorOS state under `/data/oplus` and `/data/oppo` is hidden too,
   and the default profile is `aggressive`. Other devices start at `balanced`.
 
+## When the ksud is older than the fork
+
+The hide catalogue lives in ksud, and a kernel built before the fork's hide
+packs carries a ksud without the `hide` command. NovaHide does not refuse to
+install on such a device: it registers the same catalogue itself, one
+`susfs add-sus-path` call per row, and the report names which list was used
+("pack" line: `ksud built-in catalogue` or `NovaHide's own list`). The
+fallback needs SuSFS in the kernel; without SuSFS no path can be registered
+at all and the report says so.
+
 ## Install
 
 1. SukiSU Nova → Modules → Install from storage → pick the built zip,

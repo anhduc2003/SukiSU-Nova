@@ -151,6 +151,7 @@ case "$cmd" in
         sub=$1
         case "$sub" in
             status)
+                [ -n "${NOVAHIDE_TEST_NO_HIDE:-}" ] && { printf 'error: unrecognized subcommand\n' >&2; exit 1; }
                 if [ -n "${NOVAHIDE_TEST_NO_SUSFS:-}" ]; then
                     printf 'susfs: unavailable\n'
                 else
@@ -598,6 +599,38 @@ fi
 assert_contains "the refusal is explained" "$OUT/action-hma3.log" "not a single compact line"
 sed -i 's/^AUTO_CONFIGURE_HMA=1$/AUTO_CONFIGURE_HMA=0/' /data/adb/novahide/config.conf
 rm -rf /data/misc/hide_my_applist_abcdefghijklmnop
+
+echo "== own path pack"
+: > "$CALLS"
+NOVAHIDE_TEST_NO_HIDE=1 run_script action.sh action-ownpack apply aggressive
+assert_eq "an old ksud still applies" "$?" "0"
+assert_contains "the own pack registers a light path" "$CALLS" "susfs add-sus-path /data/adb/ksud"
+assert_contains "the own pack registers a balanced path" "$CALLS" "susfs add-sus-path /data/adb/lspd"
+assert_contains "the own pack registers the device pack" "$CALLS" "susfs add-sus-path /data/oplus"
+assert_contains "the own pack registers the whole tree last" "$CALLS" "susfs add-sus-path /data/adb"
+assert_contains "the report names the own list" "$OUT/action-ownpack.log" "NovaHide's own list"
+assert_not_contains "no built-in pack call is made" "$CALLS" "hide apply"
+: > "$CALLS"
+NOVAHIDE_TEST_NO_HIDE=1 run_script action.sh action-ownpack-light apply light
+assert_contains "a light own pack stops at its own level" "$OUT/action-ownpack-light.log" "11 applied, 0 skipped"
+assert_contains "the light pass is logged as its own level" /data/adb/novahide/novahide.log "own pack (light): 11 registered"
+assert_not_contains "light skips the LSPosed row" "$CALLS" "add-sus-path /data/adb/lspd"
+: > "$CALLS"
+NOVAHIDE_TEST_NO_HIDE=1 run_script action.sh action-ownpack-off apply off
+assert_not_contains "an off own pack registers nothing" "$CALLS" "add-sus-path"
+: > "$CALLS"
+(
+    MODPATH=$MODDIR
+    BOOTMODE=true
+    KSU=true
+    NOVAHIDE_TEST_NO_HIDE=1
+    export MODPATH BOOTMODE KSU NOVAHIDE_TEST_NO_HIDE
+    ui_print() { printf '%s\n' "$1"; }
+    abort() { printf 'ABORT: %s\n' "$1"; }
+    . "$MODDIR/customize.sh"
+) > "$OUT/action-ownpack-install.log" 2>&1
+assert_contains "the installer warns instead of refusing" "$OUT/action-ownpack-install.log" "register its own copy of the path catalogue"
+assert_not_contains "the installer does not abort" "$OUT/action-ownpack-install.log" "ABORT"
 
 echo "== disabled fingerprint"
 : > /data/adb/modules/playintegrityfix/disable

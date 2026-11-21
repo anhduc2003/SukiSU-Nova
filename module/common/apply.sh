@@ -46,8 +46,13 @@ apply_all() {
         *) apply_susfs_log ;;
     esac
 
-    apply_hide "$requested_profile"
-
+    if ksud_hide_supported; then
+        apply_hide "$requested_profile"
+    else
+        # An older ksud has no `hide` command; SuSFS can still take the paths
+        # one at a time, so the module brings its own copy of the catalogue.
+        apply_own_pack "$requested_profile"
+    fi
     # `off` registers nothing in this pass. It cannot unregister what an earlier
     # pass added: SuSFS has no remove for a path, a map or mount hiding, so those
     # stay until the next reboot.

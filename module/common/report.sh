@@ -156,6 +156,16 @@ hide_line() {
         "$HIDE_APPLIED" "$(state_get time)" "$HIDE_ENTRIES"
 }
 
+# Which catalogue did the hiding: the ksud built-in one, or NovaHide's own
+# copy for a ksud too old to have the `hide` command.
+pack_line() {
+    if ksud_hide_supported; then
+        printf 'ksud built-in catalogue'
+    else
+        printf "NovaHide's own list (this ksud has no hide command)"
+    fi
+}
+
 maps_line() {
     if [ "$RUN_MODE" = apply ]; then
         printf '%s payload(s) hidden' "$MAPS_HIDDEN"
@@ -251,6 +261,7 @@ report_text() {
     fi
     printf '%-12s %s\n' "features" "${FEATURE_SUMMARY:-unknown}"
     printf '%-12s %s\n' "hide" "$(hide_line)"
+    printf '%-12s %s\n' "pack" "$(pack_line)"
     printf '%-12s %s\n' "props" "$(props_line)"
     case "$MOUNT_HIDING" in
         1) printf '%-12s %s\n' "mounts" "hidden from non-su processes" ;;
@@ -300,6 +311,7 @@ report_json() {
     else
         recorded=false
     fi
+    printf '"packSource":"%s",' "$(json_escape "$(pack_line)")"
     printf '"hide":{"applied":%s,"skipped":%s,"entries":%s,"recorded":%s,"at":"%s","summary":"%s"},' \
         "${HIDE_APPLIED:-0}" "${HIDE_SKIPPED:-0}" "${HIDE_ENTRIES:-0}" "$recorded" \
         "$(json_escape "$(state_get time)")" "$(json_escape "$HIDE_SUMMARY")"

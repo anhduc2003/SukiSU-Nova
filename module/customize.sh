@@ -15,8 +15,13 @@ ui_print "- NovaHide $(module_version)"
 if [ ! -x /data/adb/ksud ]; then
     abort "! NovaHide needs SukiSU Nova's ksud at /data/adb/ksud"
 fi
+# An older ksud has no `hide` command. The module still works: it registers
+# the same path catalogue itself through SuSFS, so this is a warning, not a
+# reason to refuse the install.
 if ! /data/adb/ksud hide status >/dev/null 2>&1; then
-    abort "! This ksud has no built-in hide packs. Update SukiSU Nova, then flash again."
+    ui_print "! This ksud has no built-in hide packs."
+    ui_print "! NovaHide will register its own copy of the path catalogue instead."
+    ui_print "! A newer SukiSU Nova (or a kernel built from the fork) restores the built-in packs."
 fi
 
 log_init
